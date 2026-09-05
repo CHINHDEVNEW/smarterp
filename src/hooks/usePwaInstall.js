@@ -10,25 +10,22 @@ function isIosDevice() {
 }
 
 export default function usePwaInstall() {
-  const [prompt, setPrompt] = useState(null)
+  const [prompt, setPrompt] = useState(() => window.smartErpInstallPrompt ?? null)
   const [installed, setInstalled] = useState(isStandalone)
   const [dismissed, setDismissed] = useState(false)
   const ios = isIosDevice()
 
   useEffect(() => {
-    function capturePrompt(event) {
-      event.preventDefault()
-      setPrompt(event)
-    }
+    function capturePrompt() { setPrompt(window.smartErpInstallPrompt ?? null) }
     function markInstalled() {
       setInstalled(true)
       setPrompt(null)
     }
-    window.addEventListener('beforeinstallprompt', capturePrompt)
-    window.addEventListener('appinstalled', markInstalled)
+    window.addEventListener('smarterp:install-ready', capturePrompt)
+    window.addEventListener('smarterp:installed', markInstalled)
     return () => {
-      window.removeEventListener('beforeinstallprompt', capturePrompt)
-      window.removeEventListener('appinstalled', markInstalled)
+      window.removeEventListener('smarterp:install-ready', capturePrompt)
+      window.removeEventListener('smarterp:installed', markInstalled)
     }
   }, [])
 
@@ -36,6 +33,7 @@ export default function usePwaInstall() {
     if (!prompt) return false
     await prompt.prompt()
     const result = await prompt.userChoice
+    window.smartErpInstallPrompt = null
     setPrompt(null)
     if (result.outcome === 'accepted') setInstalled(true)
     return result.outcome === 'accepted'
