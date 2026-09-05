@@ -1,0 +1,25 @@
+{
+  "name": "SmartERP — Quản trị doanh nghiệp",
+  "short_name": "SmartERP",
+  "description": "Quản lý bán hàng, kho và tài chính.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0284c7",
+  "lang": "vi-VN",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
