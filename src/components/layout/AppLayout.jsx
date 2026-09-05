@@ -7,6 +7,7 @@ import MobileNav from './MobileNav'
 import AppLoading from '../common/AppLoading'
 import useBusiness from '../../hooks/useBusiness'
 import useOnlineStatus from '../../hooks/useOnlineStatus'
+import PwaPrompts from '../common/PwaPrompts'
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -19,6 +20,7 @@ export default function AppLayout() {
       <div className="min-h-screen md:ml-[248px]">
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
         {!online && <div className="bg-amber-100 px-4 py-2 text-center text-xs font-bold text-amber-800">Đang ngoại tuyến · Có thể xem dữ liệu đã lưu, thao tác ghi sẽ tạm dừng.</div>}
+        <PwaPrompts />
         <main className="mx-auto min-h-[calc(100vh-68px)] max-w-[1480px] px-3 py-5 pb-24 sm:px-6 sm:py-7 md:pb-8">
           {loading ? (
             <AppLoading label="Đang tải không gian làm việc..." />
