@@ -1,13 +1,13 @@
 const ROLE_PERMISSIONS = {
   owner: ['*'],
   admin: ['*'],
-  manager: ['dashboard', 'products', 'products_manage', 'customers', 'sales', 'pos', 'purchases', 'suppliers', 'inventory', 'quotes', 'returns', 'finance', 'reports'],
+  manager: ['dashboard', 'products', 'products_manage', 'customers', 'sales', 'pos', 'purchases', 'suppliers', 'inventory', 'quotes', 'returns', 'finance', 'reports', 'production', 'production_manage', 'production_cost'],
   sales: ['dashboard', 'products', 'customers', 'sales', 'pos', 'quotes', 'returns', 'reports'],
   staff: ['dashboard', 'products', 'customers', 'sales', 'pos', 'quotes', 'reports'],
   member: ['dashboard', 'products', 'customers', 'sales', 'pos', 'quotes', 'reports'],
-  warehouse: ['dashboard', 'products', 'products_manage', 'purchases', 'suppliers', 'inventory', 'returns', 'reports'],
-  purchasing: ['dashboard', 'products', 'products_manage', 'purchases', 'suppliers', 'returns', 'reports'],
-  accountant: ['dashboard', 'products', 'finance', 'reports'],
+  warehouse: ['dashboard', 'products', 'products_manage', 'purchases', 'suppliers', 'inventory', 'returns', 'reports', 'production', 'production_manage'],
+  purchasing: ['dashboard', 'products', 'products_manage', 'purchases', 'suppliers', 'returns', 'reports', 'production', 'production_manage'],
+  accountant: ['dashboard', 'products', 'finance', 'reports', 'production', 'production_cost'],
 }
 
 export function canAccess(role, permission) {

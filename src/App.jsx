@@ -23,6 +23,7 @@ const Quotes = lazy(() => import('./pages/Quotes'))
 const Reports = lazy(() => import('./pages/Reports'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Returns = lazy(() => import('./pages/Returns'))
+const Production = lazy(() => import('./pages/Production'))
 
 function PermissionRoute({ permission, children }) {
   const { business, loading } = useBusiness()
@@ -58,6 +59,7 @@ function ProtectedApp() {
             <Route path="reports" element={<PermissionRoute permission="reports"><Reports /></PermissionRoute>} />
             <Route path="quotes" element={<PermissionRoute permission="quotes"><Quotes /></PermissionRoute>} />
             <Route path="returns" element={<PermissionRoute permission="returns"><Returns /></PermissionRoute>} />
+            <Route path="production" element={<PermissionRoute permission="production"><Production /></PermissionRoute>} />
             <Route path="settings" element={<PermissionRoute permission="settings"><Settings /></PermissionRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

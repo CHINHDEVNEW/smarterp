@@ -23,6 +23,7 @@ Các migration bổ sung cần có trên môi trường hiện tại:
 - `20260906_product_images.sql`: kho ảnh sản phẩm tối đa 5 MB.
 - `20260906_product_code_default.sql`: tự sinh mã khi tạo sản phẩm mà không nhập mã.
 - `20260906_catalog_settings_permissions.sql`: khóa quyền ghi danh mục và cài đặt theo vai trò.
+- `20260906_production.sql`: BOM, lệnh sản xuất, xuất/trả nguyên liệu, nhập thành phẩm, phế phẩm, chi phí và giá thành.
 
 ## Kiểm tra bản phát hành
 
@@ -38,7 +39,7 @@ npm run preview
 - Build command: `npm run build`
 - Build output directory: `dist`
 - Biến môi trường: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `public/_redirects` đã cấu hình fallback cho React Router.
+- `wrangler.jsonc` đã cấu hình fallback SPA cho React Router.
 
 Sau khi có URL `pages.dev`, thêm URL đó vào Supabase Authentication → URL Configuration → Redirect URLs để luồng quên mật khẩu hoạt động trên production.
 

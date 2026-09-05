@@ -18,6 +18,7 @@ const pageNames = {
   '/reports': 'Báo cáo',
   '/quotes': 'Báo giá',
   '/returns': 'Trả hàng',
+  '/production': 'Sản xuất',
   '/settings': 'Cài đặt',
 }
 

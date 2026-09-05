@@ -28,6 +28,14 @@ test('chỉ vai trò quản lý danh mục được sửa sản phẩm', () => {
   assert.equal(canAccess('manager', 'products_delete'), false)
 })
 
+test('phân quyền module sản xuất theo vai trò', () => {
+  assert.equal(canAccess('manager', 'production'), true)
+  assert.equal(canAccess('warehouse', 'production_manage'), true)
+  assert.equal(canAccess('accountant', 'production'), true)
+  assert.equal(canAccess('accountant', 'production_manage'), false)
+  assert.equal(canAccess('sales', 'production'), false)
+})
+
 test('vai trò không xác định không nhận quyền nhạy cảm', () => {
   assert.equal(canAccess('', 'settings'), false)
   assert.equal(canAccess('unknown', 'finance'), false)
