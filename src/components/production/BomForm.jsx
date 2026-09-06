@@ -122,7 +122,27 @@ export default function BomForm({ open, bom, products, bomItems, onClose, onSave
   }
 
   return (
-    <Modal open={open} onClose={saving ? () => {} : onClose} title={bom ? 'Cập nhật định mức' : 'Tạo định mức nguyên vật liệu'} description="Khai báo vật tư cần dùng cho một lượng thành phẩm chuẩn." size="lg" footer={<><button className="btn-secondary" type="button" onClick={onClose} disabled={saving}>Hủy</button><button className="btn-primary" type="submit" form="bom-form" disabled={saving}><Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu định mức'}</button></>}>
+    <Modal
+      open={open}
+      onClose={saving ? () => {} : onClose}
+      title={bom ? 'Cập nhật định mức' : 'Tạo định mức nguyên vật liệu'}
+      description="Khai báo vật tư cần dùng cho một lượng thành phẩm chuẩn."
+      size="lg"
+      icon={ClipboardList}
+      tone="sky"
+      badge={bom ? 'Chỉnh sửa định mức' : 'Tạo mới định mức'}
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>
+            Hủy
+          </button>
+          <button className="btn-primary w-full sm:w-auto" type="submit" form="bom-form" disabled={saving}>
+            <Save size={17} />
+            <span>{saving ? 'Đang lưu...' : 'Lưu định mức'}</span>
+          </button>
+        </div>
+      }
+    >
       <form id="bom-form" className="space-y-6" onSubmit={submit}>
         <fieldset>
           <legend className="form-section-title"><ClipboardList size={18} /> Thông tin định mức</legend>

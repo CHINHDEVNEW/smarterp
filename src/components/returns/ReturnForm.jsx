@@ -135,7 +135,28 @@ export default function ReturnForm({ open, businessId, initialType = 'sales', on
   const orderLabel = type === 'sales' ? 'Đơn bán cần trả' : 'Phiếu nhập cần trả'
   const itemLabel = type === 'sales' ? 'Sản phẩm khách trả' : 'Sản phẩm trả lại NCC'
 
-  return <Modal open={open} onClose={saving ? () => {} : onClose} title={type === 'sales' ? 'Tạo phiếu trả hàng bán' : 'Tạo phiếu trả hàng nhập'} description="Phiếu sẽ cập nhật tồn kho theo từng sản phẩm và ghi nhận hoàn tiền nếu bạn chọn hoàn ngay." size="lg" footer={<><button className="btn-secondary" type="button" onClick={onClose} disabled={saving}>Hủy</button><button className="btn-primary" type="submit" form="return-form" disabled={saving || ordersLoading || itemsLoading}><Save size={17} /> {saving ? 'Đang lưu...' : 'Tạo phiếu trả hàng'}</button></>}>
+  return (
+    <Modal
+      open={open}
+      onClose={saving ? () => {} : onClose}
+      title={type === 'sales' ? 'Tạo phiếu trả hàng bán' : 'Tạo phiếu trả hàng nhập'}
+      description="Phiếu sẽ cập nhật tồn kho theo từng sản phẩm và ghi nhận hoàn tiền nếu bạn chọn hoàn ngay."
+      size="lg"
+      icon={RotateCcw}
+      tone="sky"
+      badge={type === 'sales' ? 'Trả hàng bán' : 'Trả hàng nhập'}
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>
+            Hủy
+          </button>
+          <button className="btn-primary w-full sm:w-auto" type="submit" form="return-form" disabled={saving || ordersLoading || itemsLoading}>
+            <Save size={17} />
+            <span>{saving ? 'Đang lưu...' : 'Tạo phiếu trả hàng'}</span>
+          </button>
+        </div>
+      }
+    >
     <form id="return-form" className="space-y-6" onSubmit={submit}>
       <fieldset>
         <legend className="form-section-title"><RotateCcw size={18} /> Chứng từ trả hàng</legend>
@@ -161,7 +182,8 @@ export default function ReturnForm({ open, businessId, initialType = 'sales', on
 
       {(dataError || error) && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error || dataError}</div>}
     </form>
-  </Modal>
+    </Modal>
+  )
 }
 
 function Field({ label, className = '', children }) {

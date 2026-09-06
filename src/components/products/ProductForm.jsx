@@ -159,12 +159,15 @@ export default function ProductForm({ open, product, businessId, onClose, onSave
       onClose={saving ? () => {} : onClose}
       title={product ? 'Cập nhật sản phẩm' : 'Thêm sản phẩm mới'}
       description={product ? 'Chỉnh sửa thông tin bán hàng và định mức tồn kho.' : 'Tạo mặt hàng hoặc dịch vụ trong danh mục.'}
+      icon={Package}
+      tone="sky"
+      badge={product ? 'Chỉnh sửa' : 'Tạo mới'}
       size="lg"
       footer={
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose} disabled={saving}>Hủy</button>
-          <button className="btn-primary" type="submit" form="product-form" disabled={saving}><Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu sản phẩm'}</button>
-        </>
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>Hủy</button>
+          <button className="btn-primary w-full sm:w-auto" type="submit" form="product-form" disabled={saving}><Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu sản phẩm'}</button>
+        </div>
       }
     >
       <form id="product-form" onSubmit={handleSubmit} className="space-y-6">

@@ -43,7 +43,7 @@ export async function getProductionBomItems(businessId, bomId) {
 
 export async function getProductionOrderDetails(businessId, orderId) {
   const [materialsResult, costsResult, outputsResult, wastesResult] = await Promise.all([
-    supabase.from('production_order_materials').select('id, business_id, production_order_id, bom_item_id, product_id, product_code, product_name, unit, planned_quantity, issued_quantity, returned_quantity, unit_cost, note, created_at, updated_at').eq('business_id', businessId).eq('production_order_id', orderId).order('created_at', { ascending: true }),
+    supabase.from('production_order_materials').select('id, business_id, production_order_id, bom_item_id, product_id, product_code, product_name, unit, planned_quantity, issued_quantity, returned_quantity, issued_value, returned_value, unit_cost, note, created_at, updated_at').eq('business_id', businessId).eq('production_order_id', orderId).order('created_at', { ascending: true }),
     supabase.from('production_order_costs').select('id, business_id, production_order_id, cost_type, description, planned_amount, actual_amount, note, created_at, updated_at').eq('business_id', businessId).eq('production_order_id', orderId).order('created_at', { ascending: false }),
     supabase.from('production_order_outputs').select('id, business_id, production_order_id, product_id, quantity, unit_cost, note, created_at').eq('business_id', businessId).eq('production_order_id', orderId).order('created_at', { ascending: false }),
     supabase.from('production_order_wastes').select('id, business_id, production_order_id, product_id, waste_type, quantity, unit, unit_cost, reason, created_at').eq('business_id', businessId).eq('production_order_id', orderId).order('created_at', { ascending: false }),
@@ -114,4 +114,3 @@ export function subscribeToProduction(businessId, onChange) {
     .subscribe()
   return () => supabase.removeChannel(channel)
 }
-

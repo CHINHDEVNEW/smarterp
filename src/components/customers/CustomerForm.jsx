@@ -93,12 +93,15 @@ export default function CustomerForm({ open, customer, onClose, onSave }) {
       onClose={saving ? () => {} : onClose}
       title={customer ? 'Cập nhật khách hàng' : 'Thêm khách hàng mới'}
       description={customer ? 'Chỉnh sửa thông tin liên hệ và chính sách công nợ.' : 'Tạo hồ sơ để theo dõi giao dịch và công nợ.'}
+      icon={UserRound}
+      tone="sky"
+      badge={customer ? 'Chỉnh sửa' : 'Thêm mới'}
       size="lg"
       footer={
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose} disabled={saving}>Hủy</button>
-          <button className="btn-primary" type="submit" form="customer-form" disabled={saving}><Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu khách hàng'}</button>
-        </>
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>Hủy</button>
+          <button className="btn-primary w-full sm:w-auto" type="submit" form="customer-form" disabled={saving}><Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu khách hàng'}</button>
+        </div>
       }
     >
       <form id="customer-form" className="space-y-6" onSubmit={handleSubmit}>

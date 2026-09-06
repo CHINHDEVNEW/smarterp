@@ -77,7 +77,7 @@ export default function ProductionOrderDetail({
 
   const materialRows = details?.materials ?? []
   const canAct = canManage && order && !['completed', 'cancelled'].includes(order.status)
-  const consumedCost = materialRows.reduce((sum, row) => sum + (Number(row.issued_quantity) - Number(row.returned_quantity)) * (Number(row.unit_cost) || 0), 0)
+  const consumedCost = materialRows.reduce((sum, row) => sum + (Number(row.issued_value) || 0) - (Number(row.returned_value) || 0), 0)
   const status = statusOf(order?.status)
 
   function updateMap(setter, id, value) {
@@ -89,6 +89,8 @@ export default function ProductionOrderDetail({
     setBusy(action)
     try {
       await callback(payload)
+      if (action === 'issue') setIssueValues({})
+      if (action === 'return') setReturnValues({})
       if (action === 'receive') {
         setReceiveQuantity('')
         setReceiveUnitCost('')
@@ -146,7 +148,21 @@ export default function ProductionOrderDetail({
   if (!order) return null
 
   return (
-    <Modal open={open} onClose={busy ? () => {} : onClose} title={order.code} description={order.output_product_name + ' · Lệnh sản xuất'} size="lg" footer={<button className="btn-secondary" type="button" onClick={onClose} disabled={Boolean(busy)}><X size={17} /> Đóng</button>}>
+    <Modal
+      open={open}
+      onClose={busy ? () => {} : onClose}
+      title={order.code}
+      description={order.output_product_name + ' · Lệnh sản xuất'}
+      size="lg"
+      icon={Factory}
+      tone="sky"
+      badge="Chi tiết lệnh SX"
+      footer={
+        <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={Boolean(busy)}>
+          <X size={17} /> Đóng
+        </button>
+      }
+    >
       {!details ? <div className="py-5"><Loading rows={6} /></div> : <div className="space-y-6">
         <div className="flex flex-col gap-3 rounded-2xl bg-slate-950 p-5 text-white sm:flex-row sm:items-start sm:justify-between">
           <div><div className="flex flex-wrap items-center gap-2"><span className={'rounded-full px-2.5 py-1 text-xs font-bold ' + status.className}>{status.label}</span>{order.bom_code && <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/75">{order.bom_code}</span>}</div><p className="mt-3 text-sm text-white/70">Thành phẩm</p><p className="mt-1 text-lg font-extrabold">{order.output_product_name} <span className="text-sm font-semibold text-white/60">· {order.output_unit}</span></p></div>
@@ -167,7 +183,7 @@ export default function ProductionOrderDetail({
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
-          <article className="rounded-2xl border border-slate-200 p-4 sm:p-5"><h3 className="form-section-title"><PackageCheck size={18} /> Nhập thành phẩm</h3><p className="section-description">Nhập từng đợt nếu sản xuất nhiều lần. Giá thành mặc định lấy từ chi phí thực tế hiện có.</p>{canAct ? <form className="mt-4 space-y-3" onSubmit={submitReceive}><Field label={'Số lượng (' + order.output_unit + ')'}><input className="field" type="number" min="0.001" step="0.001" value={receiveQuantity} onChange={(event) => setReceiveQuantity(event.target.value)} placeholder="0" disabled={Boolean(busy)} /></Field><Field label="Giá thành đơn vị (tùy chọn)"><input className="field" type="number" min="0" step="1" value={receiveUnitCost} onChange={(event) => setReceiveUnitCost(event.target.value)} placeholder="Tự tính từ chi phí thực tế" disabled={Boolean(busy)} /></Field><Field label="Ghi chú"><input className="field" value={receiveNote} onChange={(event) => setReceiveNote(event.target.value)} placeholder="Ví dụ: Nhập đợt 1" disabled={Boolean(busy)} /></Field><button className="btn-primary w-full" type="submit" disabled={Boolean(busy)}><Save size={16} /> {busy === 'receive' ? 'Đang nhập...' : 'Ghi nhận nhập thành phẩm'}</button></form> : <p className="mt-4 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">Lệnh đã kết thúc, không thể nhập thêm.</p>}</article>
+          <article className="rounded-2xl border border-slate-200 p-4 sm:p-5"><h3 className="form-section-title"><PackageCheck size={18} /> Nhập thành phẩm</h3><p className="section-description">Có thể nhập nhiều đợt. Hệ thống tự cập nhật giá thành bình quân theo chi phí thực tế của lệnh.</p>{canAct ? <form className="mt-4 space-y-3" onSubmit={submitReceive}><Field label={'Số lượng (' + order.output_unit + ')'}><input className="field" type="number" min="0.001" step="0.001" value={receiveQuantity} onChange={(event) => setReceiveQuantity(event.target.value)} placeholder="0" disabled={Boolean(busy)} /></Field><Field label="Giá thành bình quân (tùy chọn)"><input className="field" type="number" min="0" step="1" value={receiveUnitCost} onChange={(event) => setReceiveUnitCost(event.target.value)} placeholder="Để trống để hệ thống tự tính" disabled={Boolean(busy)} /><span className="mt-1 block text-[11px] leading-4 text-slate-400">Nếu nhập, mức này áp dụng cho toàn bộ thành phẩm đã nhập của lệnh tại thời điểm hiện tại.</span></Field><Field label="Ghi chú"><input className="field" value={receiveNote} onChange={(event) => setReceiveNote(event.target.value)} placeholder="Ví dụ: Nhập đợt 1" disabled={Boolean(busy)} /></Field><button className="btn-primary w-full" type="submit" disabled={Boolean(busy)}><Save size={16} /> {busy === 'receive' ? 'Đang nhập...' : 'Ghi nhận nhập thành phẩm'}</button></form> : <p className="mt-4 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">Lệnh đã kết thúc, không thể nhập thêm.</p>}</article>
           <article className="rounded-2xl border border-slate-200 p-4 sm:p-5"><h3 className="form-section-title"><CircleAlert size={18} /> Phế phẩm / làm lại</h3><p className="section-description">Ghi nhận để theo dõi tỷ lệ hao hụt và nguyên nhân, không tự cộng lại tồn kho.</p>{canAct ? <form className="mt-4 space-y-3" onSubmit={submitWaste}><div className="grid grid-cols-2 gap-2"><Field label="Loại"><select className="field" value={wasteType} onChange={(event) => setWasteType(event.target.value)} disabled={Boolean(busy)}><option value="scrap">Phế phẩm</option><option value="rework">Làm lại</option></select></Field><Field label={'Số lượng (' + order.output_unit + ')'}><input className="field" type="number" min="0.001" step="0.001" value={wasteQuantity} onChange={(event) => setWasteQuantity(event.target.value)} placeholder="0" disabled={Boolean(busy)} /></Field></div><Field label="Sản phẩm ghi nhận"><select className="field" value={wasteProductId} onChange={(event) => setWasteProductId(event.target.value)} disabled={Boolean(busy)}>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.unit}</option>)}</select></Field><Field label="Giá vốn đơn vị (tùy chọn)"><input className="field" type="number" min="0" step="1" value={wasteUnitCost} onChange={(event) => setWasteUnitCost(event.target.value)} placeholder="Lấy giá vốn sản phẩm" disabled={Boolean(busy)} /></Field><Field label="Nguyên nhân"><input className="field" value={wasteReason} onChange={(event) => setWasteReason(event.target.value)} placeholder="Ví dụ: Sai kích thước" disabled={Boolean(busy)} /></Field><button className="btn-secondary w-full" type="submit" disabled={Boolean(busy)}><CircleAlert size={16} /> {busy === 'waste' ? 'Đang lưu...' : 'Ghi nhận phế phẩm'}</button></form> : <p className="mt-4 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">Lệnh đã kết thúc, không thể ghi thêm.</p>}</article>
         </section>
 

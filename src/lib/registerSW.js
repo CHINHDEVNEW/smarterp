@@ -1,5 +1,24 @@
 export function registerServiceWorker() {
-  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return
+  if (!('serviceWorker' in navigator)) return
+
+  // In development mode, automatically unregister any stale service worker and clear old caches
+  if (!import.meta.env.PROD) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister()
+      }
+    })
+    if ('caches' in window) {
+      caches.keys().then((keys) => {
+        for (const key of keys) {
+          if (key.startsWith('smarterp-')) {
+            caches.delete(key)
+          }
+        }
+      })
+    }
+    return
+  }
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault()
@@ -12,7 +31,8 @@ export function registerServiceWorker() {
   })
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/' })
       .then((registration) => {
         window.smartErpServiceWorker = registration
         if (registration.waiting) window.dispatchEvent(new Event('smarterp:update-ready'))

@@ -1,10 +1,32 @@
 /* oxlint-disable react/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Archive, ArchiveRestore, CircleDollarSign, Edit3, Mail, Phone, Plus, RefreshCw, Search, SlidersHorizontal, UserRound, Users, WalletCards } from 'lucide-react'
+import {
+  Archive,
+  ArchiveRestore,
+  CircleDollarSign,
+  Edit3,
+  Mail,
+  Phone,
+  Plus,
+  RefreshCw,
+  UserRound,
+  Users,
+  WalletCards,
+} from 'lucide-react'
 import useBusiness from '../hooks/useBusiness'
 import useToast from '../hooks/useToast'
-import { createCustomer, listCustomersWithSummary, setCustomerActive, subscribeToCustomers, updateCustomer } from '../services/customerService'
+import {
+  createCustomer,
+  listCustomersWithSummary,
+  setCustomerActive,
+  subscribeToCustomers,
+  updateCustomer,
+} from '../services/customerService'
 import { formatCurrency, formatNumber } from '../lib/formatters'
+import PageHeader from '../components/common/PageHeader'
+import MetricCard from '../components/common/MetricCard'
+import FilterBar from '../components/common/FilterBar'
+import StatusBadge from '../components/common/StatusBadge'
 import CustomerForm from '../components/customers/CustomerForm'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import EmptyState from '../components/common/EmptyState'
@@ -12,13 +34,16 @@ import Loading from '../components/common/Loading'
 import Pagination from '../components/common/Pagination'
 import usePagination from '../hooks/usePagination'
 
-function statusBadge(customer) {
-  if (!customer.active) return { label: 'Ngừng giao dịch', className: 'bg-slate-100 text-slate-600' }
-  if (Number(customer.receivable) > Number(customer.credit_limit) && Number(customer.credit_limit) > 0) {
-    return { label: 'Vượt hạn mức', className: 'bg-rose-50 text-rose-700' }
+function customerStatus(customer) {
+  if (!customer.active) return { label: 'Ngừng giao dịch', tone: 'slate' }
+  if (
+    Number(customer.receivable) > Number(customer.credit_limit) &&
+    Number(customer.credit_limit) > 0
+  ) {
+    return { label: 'Vượt hạn mức', tone: 'rose' }
   }
-  if (Number(customer.receivable) > 0) return { label: 'Đang có nợ', className: 'bg-amber-50 text-amber-700' }
-  return { label: 'Đang giao dịch', className: 'bg-emerald-50 text-emerald-700' }
+  if (Number(customer.receivable) > 0) return { label: 'Đang có nợ', tone: 'amber' }
+  return { label: 'Đang giao dịch', tone: 'emerald' }
 }
 
 export default function Customers() {
@@ -34,19 +59,22 @@ export default function Customers() {
   const [deactivatingCustomer, setDeactivatingCustomer] = useState(null)
   const [deactivating, setDeactivating] = useState(false)
 
-  const loadCustomers = useCallback(async ({ quiet = false } = {}) => {
-    if (!businessId) return
-    if (!quiet) setLoading(true)
-    setError('')
-    try {
-      setCustomers(await listCustomersWithSummary(businessId))
-    } catch (loadError) {
-      console.error(loadError)
-      setError('Không tải được danh sách khách hàng. Vui lòng thử lại.')
-    } finally {
-      if (!quiet) setLoading(false)
-    }
-  }, [businessId])
+  const loadCustomers = useCallback(
+    async ({ quiet = false } = {}) => {
+      if (!businessId) return
+      if (!quiet) setLoading(true)
+      setError('')
+      try {
+        setCustomers(await listCustomersWithSummary(businessId))
+      } catch (loadError) {
+        console.error(loadError)
+        setError('Không tải được danh sách khách hàng. Vui lòng thử lại.')
+      } finally {
+        if (!quiet) setLoading(false)
+      }
+    },
+    [businessId]
+  )
 
   useEffect(() => {
     loadCustomers()
@@ -64,17 +92,26 @@ export default function Customers() {
       if (status === 'inactive' && customer.active) return false
       if (status === 'debt' && Number(customer.receivable) <= 0) return false
       if (!needle) return true
-      return [customer.name, customer.code, customer.phone, customer.email, customer.address, customer.customer_group]
-        .some((value) => String(value ?? '').toLocaleLowerCase('vi').includes(needle))
+      return [
+        customer.name,
+        customer.code,
+        customer.phone,
+        customer.email,
+        customer.address,
+        customer.customer_group,
+      ].some((value) => String(value ?? '').toLocaleLowerCase('vi').includes(needle))
     })
   }, [customers, search, status])
 
-  const stats = useMemo(() => ({
-    total: customers.length,
-    active: customers.filter((customer) => customer.active).length,
-    debtCustomers: customers.filter((customer) => Number(customer.receivable) > 0).length,
-    receivable: customers.reduce((sum, customer) => sum + (Number(customer.receivable) || 0), 0),
-  }), [customers])
+  const stats = useMemo(
+    () => ({
+      total: customers.length,
+      active: customers.filter((customer) => customer.active).length,
+      debtCustomers: customers.filter((customer) => Number(customer.receivable) > 0).length,
+      receivable: customers.reduce((sum, customer) => sum + (Number(customer.receivable) || 0), 0),
+    }),
+    [customers]
+  )
 
   const customerPages = usePagination(filteredCustomers, `${search}\u0000${status}`)
 
@@ -127,111 +164,388 @@ export default function Customers() {
   }
 
   return (
-    <div>
-      <div className="page-heading">
-        <div>
-          <p className="page-eyebrow">Bán hàng và công nợ</p>
-          <h1 className="page-title">Khách hàng</h1>
-          <p className="page-description">Quản lý hồ sơ, doanh số và các khoản phải thu theo từng khách hàng.</p>
-        </div>
-        <button className="btn-primary" type="button" onClick={openCreate}><Plus size={18} /> Thêm khách hàng</button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Bán hàng và công nợ"
+        title="Khách hàng"
+        description="Quản lý hồ sơ, doanh số và các khoản phải thu theo từng khách hàng."
+        actions={
+          <button className="btn-primary w-full sm:w-auto" type="button" onClick={openCreate}>
+            <Plus size={18} />
+            <span>Thêm khách hàng</span>
+          </button>
+        }
+      />
 
-      <section className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <MiniMetric icon={Users} label="Tổng khách hàng" value={formatNumber(stats.total)} tone="sky" />
-        <MiniMetric icon={UserRound} label="Đang giao dịch" value={formatNumber(stats.active)} tone="emerald" />
-        <MiniMetric icon={WalletCards} label="Khách đang nợ" value={formatNumber(stats.debtCustomers)} tone="amber" />
-        <MiniMetric icon={CircleDollarSign} label="Tổng phải thu" value={formatCurrency(stats.receivable)} tone="rose" />
+      {/* KPI Metrics */}
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4 sm:gap-4">
+        <MetricCard
+          icon={Users}
+          label="Tổng khách hàng"
+          value={formatNumber(stats.total)}
+          tone="sky"
+          size="sm"
+        />
+        <MetricCard
+          icon={UserRound}
+          label="Đang giao dịch"
+          value={formatNumber(stats.active)}
+          tone="emerald"
+          size="sm"
+        />
+        <MetricCard
+          icon={WalletCards}
+          label="Khách đang nợ"
+          value={formatNumber(stats.debtCustomers)}
+          tone="amber"
+          size="sm"
+        />
+        <MetricCard
+          icon={CircleDollarSign}
+          label="Tổng phải thu"
+          value={formatCurrency(stats.receivable)}
+          tone="rose"
+          size="sm"
+        />
       </section>
 
+      {/* Customer List */}
       <section className="surface overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:p-5">
-          <div className="relative min-w-0 flex-1 sm:max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input className="field pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm tên, mã, số điện thoại hoặc email..." />
+        <FilterBar
+          searchPlaceholder="Tìm tên, mã, số điện thoại hoặc email..."
+          searchValue={search}
+          onSearchChange={setSearch}
+          onRefresh={() => loadCustomers()}
+          refreshing={loading}
+        >
+          <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/90 p-1 ring-1 ring-slate-200/50">
+            <button
+              type="button"
+              onClick={() => setStatus('all')}
+              className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                status === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tất cả
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus('active')}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                status === 'active'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Đang GD</span>
+              {stats.active > 0 && (
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-extrabold ${status === 'active' ? 'bg-sky-700 text-white' : 'bg-sky-100 text-sky-700'}`}>
+                  {stats.active}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus('debt')}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                status === 'debt'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Có nợ</span>
+              {stats.debtCustomers > 0 && (
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-extrabold ${status === 'debt' ? 'bg-rose-700 text-white' : 'bg-rose-100 text-rose-700'}`}>
+                  {stats.debtCustomers}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus('inactive')}
+              className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                status === 'inactive'
+                  ? 'bg-slate-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Ngừng GD
+            </button>
           </div>
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="hidden text-slate-400 sm:block" size={18} />
-            <select className="field min-w-0 flex-1 sm:w-48" value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="all">Tất cả khách hàng</option>
-              <option value="active">Đang giao dịch</option>
-              <option value="debt">Đang có công nợ</option>
-              <option value="inactive">Ngừng giao dịch</option>
-            </select>
-            <button className="btn-icon" type="button" onClick={() => loadCustomers()} disabled={loading} aria-label="Làm mới"><RefreshCw className={loading ? 'animate-spin' : ''} size={18} /></button>
-          </div>
-        </div>
+        </FilterBar>
 
         {error ? (
           <div className="flex min-h-72 flex-col items-center justify-center p-8 text-center">
             <Users className="text-rose-500" size={34} />
             <p className="mt-4 text-sm font-semibold text-slate-700">{error}</p>
-            <button className="btn-secondary mt-5" type="button" onClick={() => loadCustomers()}><RefreshCw size={17} /> Thử lại</button>
+            <button
+              className="btn-secondary mt-5"
+              type="button"
+              onClick={() => loadCustomers()}
+            >
+              <RefreshCw size={17} />
+              <span>Thử lại</span>
+            </button>
           </div>
         ) : loading ? (
-          <div className="p-5"><Loading rows={6} /></div>
+          <div className="p-5">
+            <Loading rows={6} />
+          </div>
         ) : filteredCustomers.length === 0 ? (
-          <EmptyState icon={Users} title={customers.length ? 'Không tìm thấy khách hàng' : 'Chưa có khách hàng'} description={customers.length ? 'Hãy thử từ khóa hoặc bộ lọc khác.' : 'Thêm khách hàng đầu tiên để bắt đầu theo dõi giao dịch.'} action={!customers.length && <button className="btn-primary" type="button" onClick={openCreate}><Plus size={17} /> Thêm khách hàng</button>} />
+          <EmptyState
+            icon={Users}
+            title={customers.length ? 'Không tìm thấy khách hàng' : 'Chưa có khách hàng'}
+            description={
+              customers.length
+                ? 'Hãy thử từ khóa hoặc bộ lọc khác.'
+                : 'Thêm khách hàng đầu tiên để bắt đầu theo dõi giao dịch.'
+            }
+            action={
+              !customers.length && (
+                <button className="btn-primary" type="button" onClick={openCreate}>
+                  <Plus size={17} />
+                  <span>Thêm khách hàng</span>
+                </button>
+              )
+            }
+          />
         ) : (
           <>
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[980px] border-collapse text-left">
-                <thead><tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                  <th className="px-5 py-3.5">Khách hàng</th><th className="px-4 py-3.5">Liên hệ</th><th className="px-4 py-3.5">Nhóm</th><th className="px-4 py-3.5 text-right">Tổng mua</th><th className="px-4 py-3.5 text-right">Còn nợ</th><th className="px-4 py-3.5">Trạng thái</th><th className="px-5 py-3.5 text-right">Thao tác</th>
-                </tr></thead>
+                <thead>
+                  <tr className="border-b border-slate-200/90 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="px-5 py-3.5">Khách hàng</th>
+                    <th className="px-4 py-3.5">Liên hệ</th>
+                    <th className="px-4 py-3.5">Nhóm</th>
+                    <th className="px-4 py-3.5 text-right">Tổng mua</th>
+                    <th className="px-4 py-3.5 text-right">Còn nợ</th>
+                    <th className="px-4 py-3.5">Trạng thái</th>
+                    <th className="px-5 py-3.5 text-right">Thao tác</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {customerPages.pageItems.map((customer) => <CustomerRow key={customer.id} customer={customer} onEdit={() => openEdit(customer)} onDeactivate={() => setDeactivatingCustomer(customer)} onReactivate={() => reactivate(customer)} />)}
+                  {customerPages.pageItems.map((customer) => (
+                    <CustomerRow
+                      key={customer.id}
+                      customer={customer}
+                      onEdit={() => openEdit(customer)}
+                      onDeactivate={() => setDeactivatingCustomer(customer)}
+                      onReactivate={() => reactivate(customer)}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
+
             <div className="divide-y divide-slate-100 lg:hidden">
-              {customerPages.pageItems.map((customer) => <CustomerCard key={customer.id} customer={customer} onEdit={() => openEdit(customer)} onDeactivate={() => setDeactivatingCustomer(customer)} onReactivate={() => reactivate(customer)} />)}
+              {customerPages.pageItems.map((customer) => (
+                <CustomerCard
+                  key={customer.id}
+                  customer={customer}
+                  onEdit={() => openEdit(customer)}
+                  onDeactivate={() => setDeactivatingCustomer(customer)}
+                  onReactivate={() => reactivate(customer)}
+                />
+              ))}
             </div>
-            <Pagination page={customerPages.page} pageCount={customerPages.pageCount} pageSize={customerPages.pageSize} total={filteredCustomers.length} onChange={customerPages.setPage} />
+
+            <Pagination
+              page={customerPages.page}
+              pageCount={customerPages.pageCount}
+              pageSize={customerPages.pageSize}
+              total={filteredCustomers.length}
+              onChange={customerPages.setPage}
+            />
           </>
         )}
       </section>
 
-      <CustomerForm open={formOpen} customer={editingCustomer} onClose={() => setFormOpen(false)} onSave={saveCustomer} />
-      <ConfirmDialog open={Boolean(deactivatingCustomer)} onClose={() => setDeactivatingCustomer(null)} onConfirm={confirmDeactivate} loading={deactivating} title="Ngừng giao dịch với khách hàng?" description={deactivatingCustomer ? `“${deactivatingCustomer.name}” sẽ không còn xuất hiện khi lập chứng từ mới.` : ''} confirmLabel="Ngừng giao dịch" message="Hồ sơ và lịch sử giao dịch vẫn được giữ nguyên. Bạn có thể kích hoạt lại khách hàng bất cứ lúc nào." />
+      <CustomerForm
+        open={formOpen}
+        customer={editingCustomer}
+        onClose={() => setFormOpen(false)}
+        onSave={saveCustomer}
+      />
+      <ConfirmDialog
+        open={Boolean(deactivatingCustomer)}
+        onClose={() => setDeactivatingCustomer(null)}
+        onConfirm={confirmDeactivate}
+        loading={deactivating}
+        title="Ngừng giao dịch với khách hàng?"
+        description={
+          deactivatingCustomer
+            ? `“${deactivatingCustomer.name}” sẽ không còn xuất hiện khi lập chứng từ mới.`
+            : ''
+        }
+        confirmLabel="Ngừng giao dịch"
+        message="Hồ sơ và lịch sử giao dịch vẫn được giữ nguyên. Bạn có thể kích hoạt lại khách hàng bất cứ lúc nào."
+      />
     </div>
   )
 }
 
-const metricTones = {
-  sky: 'bg-sky-50 text-sky-600',
-  emerald: 'bg-emerald-50 text-emerald-600',
-  amber: 'bg-amber-50 text-amber-600',
-  rose: 'bg-rose-50 text-rose-600',
-}
-
-function MiniMetric({ icon: Icon, label, value, tone }) {
-  return <article className="surface flex items-center gap-3 p-4 sm:p-5"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${metricTones[tone]}`}><Icon size={20} /></span><div className="min-w-0"><p className="truncate text-xs font-medium text-slate-500">{label}</p><p className="mt-1 truncate text-xl font-extrabold text-slate-900">{value}</p></div></article>
-}
-
 function CustomerRow({ customer, onEdit, onDeactivate, onReactivate }) {
-  const state = statusBadge(customer)
+  const status = customerStatus(customer)
   return (
-    <tr className="transition hover:bg-slate-50/70">
-      <td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-sky-50 to-emerald-50 font-extrabold text-sky-700">{customer.name.slice(0, 1).toLocaleUpperCase('vi')}</span><div className="min-w-0"><p className="max-w-56 truncate text-sm font-bold text-slate-800">{customer.name}</p><p className="mt-1 text-xs text-slate-400">{customer.code || 'Chưa có mã'} · {formatNumber(customer.orderCount)} đơn</p></div></div></td>
-      <td className="px-4 py-4"><p className="text-sm font-semibold text-slate-700">{customer.phone || '—'}</p><p className="mt-1 max-w-48 truncate text-xs text-slate-400">{customer.email || customer.address || 'Chưa có thông tin'}</p></td>
-      <td className="px-4 py-4 text-sm text-slate-600">{customer.customer_group || 'Khách lẻ'}</td>
-      <td className="px-4 py-4 text-right text-sm font-bold text-slate-800">{formatCurrency(customer.totalSales)}</td>
-      <td className={`px-4 py-4 text-right text-sm font-extrabold ${Number(customer.receivable) > 0 ? 'text-rose-600' : 'text-slate-500'}`}>{formatCurrency(customer.receivable)}</td>
-      <td className="px-4 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${state.className}`}>{state.label}</span></td>
-      <td className="px-5 py-4"><div className="flex justify-end gap-1"><button className="btn-icon" type="button" onClick={onEdit} aria-label={`Sửa ${customer.name}`}><Edit3 size={17} /></button>{customer.active ? <button className="btn-icon text-rose-500 hover:bg-rose-50 hover:text-rose-700" type="button" onClick={onDeactivate} aria-label={`Ngừng giao dịch ${customer.name}`}><Archive size={17} /></button> : <button className="btn-icon text-emerald-600 hover:bg-emerald-50" type="button" onClick={onReactivate} aria-label={`Kích hoạt ${customer.name}`}><ArchiveRestore size={17} /></button>}</div></td>
+    <tr className="transition-colors hover:bg-slate-50/80">
+      <td className="px-5 py-4">
+        <div className="flex items-center gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-600 font-black text-white shadow-xs">
+            {customer.name.slice(0, 1).toLocaleUpperCase('vi')}
+          </span>
+          <div className="min-w-0">
+            <p className="max-w-56 truncate text-sm font-bold text-slate-900">{customer.name}</p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              {customer.code || 'Chưa có mã'} ·{' '}
+              <span className="tabular-nums">{formatNumber(customer.orderCount)}</span> đơn
+            </p>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-4">
+        <p className="tabular-nums text-sm font-semibold text-slate-700">{customer.phone || '—'}</p>
+        <p className="mt-0.5 max-w-48 truncate text-xs text-slate-400">
+          {customer.email || customer.address || 'Chưa có thông tin'}
+        </p>
+      </td>
+      <td className="px-4 py-4 text-sm text-slate-600">
+        {customer.customer_group || 'Khách lẻ'}
+      </td>
+      <td className="tabular-nums px-4 py-4 text-right text-sm font-bold text-slate-800">
+        {formatCurrency(customer.totalSales)}
+      </td>
+      <td
+        className={`tabular-nums px-4 py-4 text-right text-sm font-extrabold ${
+          Number(customer.receivable) > 0 ? 'text-rose-600' : 'text-slate-500'
+        }`}
+      >
+        {formatCurrency(customer.receivable)}
+      </td>
+      <td className="px-4 py-4">
+        <StatusBadge label={status.label} tone={status.tone} size="sm" />
+      </td>
+      <td className="px-5 py-4">
+        <div className="flex justify-end gap-1">
+          <button
+            className="btn-icon"
+            type="button"
+            onClick={onEdit}
+            aria-label={`Sửa ${customer.name}`}
+          >
+            <Edit3 size={17} />
+          </button>
+          {customer.active ? (
+            <button
+              className="btn-icon text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+              type="button"
+              onClick={onDeactivate}
+              aria-label={`Ngừng giao dịch ${customer.name}`}
+            >
+              <Archive size={17} />
+            </button>
+          ) : (
+            <button
+              className="btn-icon text-emerald-600 hover:bg-emerald-50"
+              type="button"
+              onClick={onReactivate}
+              aria-label={`Kích hoạt ${customer.name}`}
+            >
+              <ArchiveRestore size={17} />
+            </button>
+          )}
+        </div>
+      </td>
     </tr>
   )
 }
 
 function CustomerCard({ customer, onEdit, onDeactivate, onReactivate }) {
-  const state = statusBadge(customer)
+  const status = customerStatus(customer)
   return (
     <article className="p-4">
-      <div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-sky-50 to-emerald-50 font-extrabold text-sky-700">{customer.name.slice(0, 1).toLocaleUpperCase('vi')}</span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><h2 className="truncate text-sm font-bold text-slate-900">{customer.name}</h2><p className="mt-1 truncate text-xs text-slate-400">{customer.code || 'Chưa có mã'} · {customer.customer_group || 'Khách lẻ'}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${state.className}`}>{state.label}</span></div></div></div>
-      <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3"><div><p className="text-[11px] font-medium text-slate-400">Tổng mua</p><p className="mt-1 text-sm font-extrabold text-slate-800">{formatCurrency(customer.totalSales)}</p></div><div className="text-right"><p className="text-[11px] font-medium text-slate-400">Còn nợ</p><p className={`mt-1 text-sm font-extrabold ${Number(customer.receivable) > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{formatCurrency(customer.receivable)}</p></div></div>
-      <div className="mt-3 space-y-1.5 text-xs text-slate-500">{customer.phone && <p className="flex items-center gap-2"><Phone size={14} /> {customer.phone}</p>}{customer.email && <p className="flex items-center gap-2"><Mail size={14} /> {customer.email}</p>}</div>
-      <div className="mt-3 flex gap-2"><button className="btn-secondary flex-1" type="button" onClick={onEdit}><Edit3 size={16} /> Chỉnh sửa</button>{customer.active ? <button className="btn-icon text-rose-500" type="button" onClick={onDeactivate} aria-label="Ngừng giao dịch"><Archive size={17} /></button> : <button className="btn-icon text-emerald-600" type="button" onClick={onReactivate} aria-label="Kích hoạt lại"><ArchiveRestore size={17} /></button>}</div>
+      <div className="flex items-start gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-sky-50 font-extrabold text-sky-700 ring-1 ring-sky-100">
+          {customer.name.slice(0, 1).toLocaleUpperCase('vi')}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-bold text-slate-900">{customer.name}</h3>
+              <p className="mt-0.5 truncate text-xs text-slate-400">
+                {customer.code || 'Chưa có mã'} · {customer.customer_group || 'Khách lẻ'}
+              </p>
+            </div>
+            <StatusBadge label={status.label} tone={status.tone} size="sm" />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 border border-slate-100">
+        <div>
+          <p className="text-[11px] font-medium text-slate-400">Tổng mua</p>
+          <p className="tabular-nums mt-0.5 text-sm font-extrabold text-slate-800">
+            {formatCurrency(customer.totalSales)}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-medium text-slate-400">Còn nợ</p>
+          <p
+            className={`tabular-nums mt-0.5 text-sm font-extrabold ${
+              Number(customer.receivable) > 0 ? 'text-rose-600' : 'text-slate-700'
+            }`}
+          >
+            {formatCurrency(customer.receivable)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-1 text-xs text-slate-500">
+        {customer.phone && (
+          <p className="flex items-center gap-2">
+            <Phone size={14} className="text-slate-400" />
+            <span className="tabular-nums">{customer.phone}</span>
+          </p>
+        )}
+        {customer.email && (
+          <p className="flex items-center gap-2">
+            <Mail size={14} className="text-slate-400" />
+            <span className="truncate">{customer.email}</span>
+          </p>
+        )}
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <button
+          className="btn-secondary flex-1 justify-center"
+          type="button"
+          onClick={onEdit}
+        >
+          <Edit3 size={16} />
+          <span>Chỉnh sửa</span>
+        </button>
+        {customer.active ? (
+          <button
+            className="btn-icon text-rose-500 hover:bg-rose-50"
+            type="button"
+            onClick={onDeactivate}
+            aria-label="Ngừng giao dịch"
+          >
+            <Archive size={17} />
+          </button>
+        ) : (
+          <button
+            className="btn-icon text-emerald-600 hover:bg-emerald-50"
+            type="button"
+            onClick={onReactivate}
+            aria-label="Kích hoạt lại"
+          >
+            <ArchiveRestore size={17} />
+          </button>
+        )}
+      </div>
     </article>
   )
 }

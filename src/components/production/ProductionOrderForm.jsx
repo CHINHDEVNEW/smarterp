@@ -26,7 +26,7 @@ const costLabels = {
   other: 'Chi phí khác',
 }
 
-export default function ProductionOrderForm({ open, boms, products, onClose, onSave }) {
+export default function ProductionOrderForm({ open, boms, products, canManageCosts, onClose, onSave }) {
   const [values, setValues] = useState(initialValues)
   const [materials, setMaterials] = useState([])
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -85,13 +85,14 @@ export default function ProductionOrderForm({ open, boms, products, onClose, onS
     if (!values.bom_id && !values.output_product_id) return setError('Vui lòng chọn định mức hoặc sản phẩm đầu ra.')
     if (values.planned_start_date && values.planned_end_date && values.planned_end_date < values.planned_start_date) return setError('Ngày kết thúc phải sau ngày bắt đầu.')
     if (!values.bom_id && materials.some((item) => (Number(item.planned_quantity) || 0) <= 0)) return setError('Số lượng nguyên vật liệu phải lớn hơn 0.')
+    if (!values.bom_id && materials.some((item) => item.product_id === values.output_product_id)) return setError('Sản phẩm đầu ra không thể đồng thời là nguyên vật liệu.')
 
-    const costs = Object.entries(costLabels).map(([type, description]) => ({
+    const costs = canManageCosts ? Object.entries(costLabels).map(([type, description]) => ({
       cost_type: type,
       description,
       planned_amount: Number(values[type]) || 0,
       actual_amount: 0,
-    })).filter((cost) => cost.planned_amount > 0)
+    })).filter((cost) => cost.planned_amount > 0) : []
 
     setSaving(true)
     try {
@@ -117,7 +118,27 @@ export default function ProductionOrderForm({ open, boms, products, onClose, onS
   }
 
   return (
-    <Modal open={open} onClose={saving ? () => {} : onClose} title="Tạo lệnh sản xuất" description="Chọn định mức, sản lượng và các chi phí dự kiến cho một lệnh mới." size="lg" footer={<><button className="btn-secondary" type="button" onClick={onClose} disabled={saving}>Hủy</button><button className="btn-primary" type="submit" form="production-order-form" disabled={saving}><Save size={17} /> {saving ? 'Đang lưu...' : 'Tạo lệnh sản xuất'}</button></>}>
+    <Modal
+      open={open}
+      onClose={saving ? () => {} : onClose}
+      title="Tạo lệnh sản xuất"
+      description="Chọn định mức, sản lượng và các chi phí dự kiến cho một lệnh mới."
+      size="lg"
+      icon={Factory}
+      tone="sky"
+      badge="Lệnh sản xuất"
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>
+            Hủy
+          </button>
+          <button className="btn-primary w-full sm:w-auto" type="submit" form="production-order-form" disabled={saving}>
+            <Save size={17} />
+            <span>{saving ? 'Đang lưu...' : 'Tạo lệnh sản xuất'}</span>
+          </button>
+        </div>
+      }
+    >
       <form id="production-order-form" className="space-y-6" onSubmit={submit}>
         <fieldset>
           <legend className="form-section-title"><Factory size={18} /> Thông tin lệnh</legend>
@@ -140,13 +161,13 @@ export default function ProductionOrderForm({ open, boms, products, onClose, onS
           <p className="mt-2 text-xs leading-5 text-slate-400">Khi dùng định mức, hệ thống tự chụp lại nguyên liệu và giá vốn tại thời điểm tạo lệnh.</p>
         </fieldset>}
 
-        <fieldset>
+        {canManageCosts && <fieldset>
           <legend className="form-section-title"><CalendarDays size={18} /> Chi phí dự kiến</legend>
           <div className="grid gap-3 sm:grid-cols-2">
             {Object.entries(costLabels).map(([type, label]) => <Field label={label} key={type}><input className="field text-right" type="number" min="0" step="1" value={values[type]} onChange={(event) => update(type, event.target.value)} disabled={saving} /></Field>)}
           </div>
           <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl bg-slate-950 px-4 py-3 text-sm text-white"><span className="font-medium text-white/70">Chi phí ngoài nguyên vật liệu</span><span className="font-extrabold">{formatCurrency(plannedNonMaterialCost)}</span></div>
-        </fieldset>
+        </fieldset>}
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</div>}
       </form>
     </Modal>
@@ -156,5 +177,3 @@ export default function ProductionOrderForm({ open, boms, products, onClose, onS
 function Field({ label, required = false, className = '', children }) {
   return <label className={`block ${className}`}><span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}{required && <span className="text-rose-500"> *</span>}</span>{children}</label>
 }
-
-

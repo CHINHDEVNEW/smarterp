@@ -1,6 +1,6 @@
 /* oxlint-disable react/set-state-in-effect */
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Minus, PackagePlus, Plus, Save, ShoppingCart, Trash2, UserRound } from 'lucide-react'
+import { CalendarDays, Minus, PackagePlus, Plus, ReceiptText, Save, ShoppingCart, Trash2, UserRound } from 'lucide-react'
 import Modal from '../common/Modal'
 import { listProducts } from '../../services/productService'
 import { listCustomersWithSummary } from '../../services/customerService'
@@ -133,8 +133,21 @@ export default function SalesOrderForm({ open, businessId, onClose, onSave }) {
       onClose={saving ? () => {} : onClose}
       title="Tạo đơn bán hàng"
       description="Đơn được xác nhận ngay và tự động ghi nhận xuất kho."
+      icon={ReceiptText}
+      tone="sky"
+      badge="Bán hàng trực tiếp"
       size="lg"
-      footer={<><button className="btn-secondary" type="button" onClick={onClose} disabled={saving}>Hủy</button><button className="btn-primary" type="submit" form="sales-order-form" disabled={saving || loadingData}><Save size={17} /> {saving ? 'Đang tạo đơn...' : 'Xác nhận đơn bán'}</button></>}
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>
+            Hủy
+          </button>
+          <button className="btn-primary w-full sm:w-auto" type="submit" form="sales-order-form" disabled={saving || loadingData}>
+            <Save size={17} />
+            <span>{saving ? 'Đang tạo đơn...' : 'Xác nhận đơn bán'}</span>
+          </button>
+        </div>
+      }
     >
       <form id="sales-order-form" className="space-y-6" onSubmit={handleSubmit}>
         <fieldset>

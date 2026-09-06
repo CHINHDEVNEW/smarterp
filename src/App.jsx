@@ -10,6 +10,7 @@ import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 import useBusiness from './hooks/useBusiness'
 import { canAccess } from './lib/permissions'
+import ErrorBoundary from './components/common/ErrorBoundary'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Products = lazy(() => import('./pages/Products'))
 const Customers = lazy(() => import('./pages/Customers'))
@@ -43,40 +44,44 @@ function ProtectedApp() {
 
   return (
     <BusinessProvider>
-      <Suspense fallback={<AppLoading label="Đang mở chức năng..." />}>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="products" element={<PermissionRoute permission="products"><Products /></PermissionRoute>} />
-            <Route path="customers" element={<PermissionRoute permission="customers"><Customers /></PermissionRoute>} />
-            <Route path="sales" element={<PermissionRoute permission="sales"><Sales /></PermissionRoute>} />
-            <Route path="pos" element={<PermissionRoute permission="pos"><POS /></PermissionRoute>} />
-            <Route path="purchases" element={<PermissionRoute permission="purchases"><Purchases /></PermissionRoute>} />
-            <Route path="suppliers" element={<PermissionRoute permission="suppliers"><Suppliers /></PermissionRoute>} />
-            <Route path="inventory" element={<PermissionRoute permission="inventory"><Inventory /></PermissionRoute>} />
-            <Route path="finance" element={<PermissionRoute permission="finance"><Finance /></PermissionRoute>} />
-            <Route path="reports" element={<PermissionRoute permission="reports"><Reports /></PermissionRoute>} />
-            <Route path="quotes" element={<PermissionRoute permission="quotes"><Quotes /></PermissionRoute>} />
-            <Route path="returns" element={<PermissionRoute permission="returns"><Returns /></PermissionRoute>} />
-            <Route path="production" element={<PermissionRoute permission="production"><Production /></PermissionRoute>} />
-            <Route path="settings" element={<PermissionRoute permission="settings"><Settings /></PermissionRoute>} />
-          </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<AppLoading label="Đang mở chức năng..." />}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="products" element={<PermissionRoute permission="products"><Products /></PermissionRoute>} />
+              <Route path="customers" element={<PermissionRoute permission="customers"><Customers /></PermissionRoute>} />
+              <Route path="sales" element={<PermissionRoute permission="sales"><Sales /></PermissionRoute>} />
+              <Route path="pos" element={<PermissionRoute permission="pos"><POS /></PermissionRoute>} />
+              <Route path="purchases" element={<PermissionRoute permission="purchases"><Purchases /></PermissionRoute>} />
+              <Route path="suppliers" element={<PermissionRoute permission="suppliers"><Suppliers /></PermissionRoute>} />
+              <Route path="inventory" element={<PermissionRoute permission="inventory"><Inventory /></PermissionRoute>} />
+              <Route path="finance" element={<PermissionRoute permission="finance"><Finance /></PermissionRoute>} />
+              <Route path="reports" element={<PermissionRoute permission="reports"><Reports /></PermissionRoute>} />
+              <Route path="quotes" element={<PermissionRoute permission="quotes"><Quotes /></PermissionRoute>} />
+              <Route path="returns" element={<PermissionRoute permission="returns"><Returns /></PermissionRoute>} />
+              <Route path="production" element={<PermissionRoute permission="production"><Production /></PermissionRoute>} />
+              <Route path="settings" element={<PermissionRoute permission="settings"><Settings /></PermissionRoute>} />
+            </Route>
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </BusinessProvider>
   )
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <ProtectedApp />
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <ProtectedApp />
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

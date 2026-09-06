@@ -80,8 +80,29 @@ export default function StocktakeForm({ open, products, onClose, onSave }) {
     }
   }
 
-  return <Modal open={open} onClose={saving ? () => {} : onClose} title="Kiểm kê kho" description="Nhập tồn thực tế tại thời điểm kiểm kê. Hệ thống sẽ tự tính chênh lệch và ghi vào sổ kho." size="lg" footer={<><button className="btn-secondary" type="button" onClick={onClose} disabled={saving}>Hủy</button><button className="btn-primary" type="submit" form="stocktake-form" disabled={saving || !products.length}><Save size={17} /> {saving ? 'Đang lưu...' : 'Hoàn tất kiểm kê'}</button></>}>
-    <form id="stocktake-form" className="space-y-6" onSubmit={submit}>
+  return (
+    <Modal
+      open={open}
+      onClose={saving ? () => {} : onClose}
+      title="Kiểm kê kho"
+      description="Nhập tồn thực tế tại thời điểm kiểm kê. Hệ thống sẽ tự tính chênh lệch và ghi vào sổ kho."
+      size="lg"
+      icon={ClipboardCheck}
+      tone="sky"
+      badge="Phiếu kiểm kê"
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>
+            Hủy
+          </button>
+          <button className="btn-primary w-full sm:w-auto" type="submit" form="stocktake-form" disabled={saving || !products.length}>
+            <Save size={17} />
+            <span>{saving ? 'Đang lưu...' : 'Hoàn tất kiểm kê'}</span>
+          </button>
+        </div>
+      }
+    >
+      <form id="stocktake-form" className="space-y-6" onSubmit={submit}>
       <div className="form-grid">
         <Field label="Ngày kiểm kê"><input className="field" type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={saving} required /></Field>
         <Field label="Ghi chú kiểm kê"><input className="field" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ví dụ: Đối chiếu cuối ngày" disabled={saving} required /></Field>
@@ -100,7 +121,8 @@ export default function StocktakeForm({ open, products, onClose, onSave }) {
       </section>
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</div>}
     </form>
-  </Modal>
+    </Modal>
+  )
 }
 
 function SummaryCard({ label, value, tone = 'slate' }) {
