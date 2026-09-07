@@ -559,12 +559,13 @@ function PaymentForm({ open, order, businessId, onClose, onSaved }) {
       }
     >
       <form id="payment-form" className="space-y-4" onSubmit={submit}>
-        <Field label="Tài khoản nhận tiền">
+        <Field label="Tài khoản nhận tiền" required>
           <select
             className="field"
             value={accountId}
             onChange={(event) => setAccountId(event.target.value)}
             disabled={loading}
+            required
           >
             <option value="">{loading ? 'Đang tải...' : 'Chọn tài khoản'}</option>
             {accounts.map((account) => (
@@ -573,7 +574,7 @@ function PaymentForm({ open, order, businessId, onClose, onSaved }) {
           </select>
         </Field>
 
-        <Field label="Số tiền thu">
+        <Field label="Số tiền thu" required>
           <input
             className="field tabular-nums text-right text-lg font-bold"
             type="number"
@@ -618,10 +619,10 @@ function PaymentForm({ open, order, businessId, onClose, onSaved }) {
   )
 }
 
-function Field({ label, children }) {
+function Field({ label, required = false, children }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}{required && <span className="text-rose-500"> *</span>}</span>
       {children}
     </label>
   )

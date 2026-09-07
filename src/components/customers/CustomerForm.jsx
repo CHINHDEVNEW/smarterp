@@ -117,7 +117,6 @@ export default function CustomerForm({ open, customer, businessId, onClose, onSa
       }
     >
       <form id="customer-form" className="space-y-6" onSubmit={handleSubmit}>
-        <p className="text-xs text-slate-500"><span className="font-bold text-rose-500">*</span> là trường bắt buộc. Các trường còn lại có thể để trống.</p>
         <fieldset>
           <legend className="form-section-title"><UserRound size={18} /> Thông tin khách hàng</legend>
           <div className="form-grid">

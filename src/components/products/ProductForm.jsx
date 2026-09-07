@@ -183,7 +183,6 @@ export default function ProductForm({ open, product, businessId, onClose, onSave
       }
     >
       <form id="product-form" onSubmit={handleSubmit} className="space-y-6">
-        <p className="text-xs text-slate-500"><span className="font-bold text-rose-500">*</span> là trường bắt buộc. Các trường còn lại có thể để trống.</p>
         <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-100 p-1.5">
           <button className={`rounded-xl px-3 py-3 text-sm font-bold transition ${values.product_type === 'goods' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} type="button" onClick={() => update('product_type', 'goods')}><span className="flex items-center justify-center gap-2"><Package size={18} /> Hàng hóa</span></button>
           <button className={`rounded-xl px-3 py-3 text-sm font-bold transition ${values.product_type === 'service' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} type="button" onClick={() => update('product_type', 'service')}><span className="flex items-center justify-center gap-2"><BadgeDollarSign size={18} /> Dịch vụ</span></button>

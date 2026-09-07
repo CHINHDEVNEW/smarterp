@@ -149,7 +149,7 @@ export default function Login() {
                 <div className="mt-7 space-y-4">
                   <label className="block">
                     <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
-                      Email
+                      Email <span className="text-rose-500">*</span>
                     </span>
                     <span className="relative block">
                       <Mail
@@ -171,7 +171,7 @@ export default function Login() {
                   {mode === 'login' && (
                     <label className="block">
                       <span className="mb-1.5 flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-wider text-slate-600">
-                        <span>Mật khẩu</span>
+                        <span>Mật khẩu <span className="text-rose-500">*</span></span>
                         <button
                           className="text-xs font-semibold normal-case text-sky-600 hover:text-sky-700"
                           type="button"

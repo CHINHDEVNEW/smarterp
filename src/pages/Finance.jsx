@@ -556,7 +556,7 @@ function FinanceForm({ open, accounts, onClose, onSave }) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Ngày giao dịch
+              Ngày giao dịch <span className="text-rose-500">*</span>
             </span>
             <input
               className="field"
@@ -569,7 +569,7 @@ function FinanceForm({ open, accounts, onClose, onSave }) {
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Tài khoản tiền
+              Tài khoản tiền <span className="text-rose-500">*</span>
             </span>
             <select
               className="field"
@@ -588,13 +588,14 @@ function FinanceForm({ open, accounts, onClose, onSave }) {
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Khoản mục
+              Khoản mục <span className="text-rose-500">*</span>
             </span>
             <input
               className="field"
               value={values.category}
               onChange={(event) => update('category', event.target.value)}
               placeholder={values.direction === 'in' ? 'Bán hàng, thu khác...' : 'Nhập hàng, vận chuyển...'}
+              required
             />
           </label>
 
@@ -616,7 +617,7 @@ function FinanceForm({ open, accounts, onClose, onSave }) {
 
           <label className="block sm:col-span-2">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Số tiền
+              Số tiền <span className="text-rose-500">*</span>
             </span>
             <input
               className="field tabular-nums text-right text-lg font-bold"
@@ -864,7 +865,7 @@ function FinanceAccountsModal({ open, businessId, onClose, onChanged }) {
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Mã tài khoản
+              Mã tài khoản <span className="text-rose-500">*</span>
             </span>
             <input
               className="field uppercase font-semibold"
@@ -878,7 +879,7 @@ function FinanceAccountsModal({ open, businessId, onClose, onChanged }) {
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Tên tài khoản
+              Tên tài khoản <span className="text-rose-500">*</span>
             </span>
             <input
               className="field"

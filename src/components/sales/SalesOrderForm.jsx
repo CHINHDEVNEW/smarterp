@@ -154,13 +154,13 @@ export default function SalesOrderForm({ open, businessId, onClose, onSave }) {
           <legend className="form-section-title"><UserRound size={18} /> Khách hàng và thời gian</legend>
           <div className="form-grid">
             <Field label="Khách hàng" className="sm:col-span-2"><select className="field" value={order.customer_id} onChange={(event) => updateOrder('customer_id', event.target.value)} disabled={loadingData}><option value="">Khách lẻ</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</option>)}</select></Field>
-            <Field label="Ngày bán"><input className="field" type="date" value={order.order_date} onChange={(event) => updateOrder('order_date', event.target.value)} required /></Field>
+            <Field label="Ngày bán" required><input className="field" type="date" value={order.order_date} onChange={(event) => updateOrder('order_date', event.target.value)} required /></Field>
             <Field label="Hạn thanh toán"><input className="field" type="date" min={order.order_date} value={order.due_date} onChange={(event) => updateOrder('due_date', event.target.value)} /></Field>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend className="form-section-title"><ShoppingCart size={18} /> Sản phẩm</legend>
+          <legend className="form-section-title"><ShoppingCart size={18} /> Sản phẩm <span className="text-rose-500">*</span></legend>
           <div className="flex gap-2">
             <select className="field min-w-0 flex-1" value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} disabled={loadingData}><option value="">{loadingData ? 'Đang tải sản phẩm...' : 'Chọn sản phẩm để thêm'}</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatCurrency(product.sale_price)}{product.product_type !== 'service' ? ` · Tồn ${product.stock_on_hand}` : ''}</option>)}</select>
             <button className="btn-secondary shrink-0" type="button" onClick={addProduct} disabled={!selectedProductId}><PackagePlus size={17} /> <span className="hidden sm:inline">Thêm</span></button>
@@ -174,8 +174,8 @@ export default function SalesOrderForm({ open, businessId, onClose, onSave }) {
                 <div className="p-4" key={item.product_id}>
                   <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{item.name}</p><p className="mt-1 text-xs text-slate-400">{item.code || 'Chưa có mã'} · {item.unit}{item.product_type !== 'service' ? ` · Tồn ${item.stock_on_hand}` : ''}</p></div><button className="btn-icon -mr-2 -mt-2 text-rose-500" type="button" onClick={() => removeItem(item.product_id)} aria-label={`Xóa ${item.name}`}><Trash2 size={17} /></button></div>
                   <div className="mt-3 grid grid-cols-[1fr_1.5fr] gap-3 sm:grid-cols-[140px_1fr_auto] sm:items-end">
-                    <Field label="Số lượng"><div className="flex"><button className="grid w-10 place-items-center rounded-l-xl border border-r-0 border-slate-200 text-slate-500" type="button" onClick={() => updateItem(item.product_id, 'quantity', String(Math.max(1, (Number(item.quantity) || 1) - 1)))}><Minus size={15} /></button><input className="field rounded-none text-center" type="number" min="0.001" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.product_id, 'quantity', event.target.value)} /><button className="grid w-10 place-items-center rounded-r-xl border border-l-0 border-slate-200 text-slate-500" type="button" onClick={() => updateItem(item.product_id, 'quantity', String((Number(item.quantity) || 0) + 1))}><Plus size={15} /></button></div></Field>
-                    <Field label="Đơn giá"><input className="field text-right" type="number" min="0" step="1" value={item.unit_price} onChange={(event) => updateItem(item.product_id, 'unit_price', event.target.value)} /></Field>
+                    <Field label="Số lượng" required><div className="flex"><button className="grid w-10 place-items-center rounded-l-xl border border-r-0 border-slate-200 text-slate-500" type="button" onClick={() => updateItem(item.product_id, 'quantity', String(Math.max(1, (Number(item.quantity) || 1) - 1)))}><Minus size={15} /></button><input className="field rounded-none text-center" type="number" min="0.001" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.product_id, 'quantity', event.target.value)} required /><button className="grid w-10 place-items-center rounded-r-xl border border-l-0 border-slate-200 text-slate-500" type="button" onClick={() => updateItem(item.product_id, 'quantity', String((Number(item.quantity) || 0) + 1))}><Plus size={15} /></button></div></Field>
+                    <Field label="Đơn giá" required><input className="field text-right" type="number" min="0" step="1" value={item.unit_price} onChange={(event) => updateItem(item.product_id, 'unit_price', event.target.value)} required /></Field>
                     <div className="col-span-2 text-right sm:col-span-1 sm:min-w-32"><p className="text-xs font-medium text-slate-400">Thành tiền</p><p className="mt-2 text-sm font-extrabold text-slate-900">{formatCurrency((Number(item.quantity) || 0) * (Number(item.unit_price) || 0))}</p></div>
                   </div>
                 </div>
@@ -201,8 +201,8 @@ export default function SalesOrderForm({ open, businessId, onClose, onSave }) {
   )
 }
 
-function Field({ label, className = '', children }) {
-  return <label className={`block ${className}`}><span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</span>{children}</label>
+function Field({ label, required = false, className = '', children }) {
+  return <label className={`block ${className}`}><span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}{required && <span className="text-rose-500"> *</span>}</span>{children}</label>
 }
 
 function SummaryRow({ label, value, muted = false, strong = false }) {

@@ -867,7 +867,7 @@ function AdjustmentForm({ open, products, onClose, onSave }) {
       <form id="adjustment-form" className="space-y-4" onSubmit={submit}>
         <label className="block">
           <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-            Sản phẩm
+            Sản phẩm <span className="text-rose-500">*</span>
           </span>
           <select
             className="field"
@@ -887,7 +887,7 @@ function AdjustmentForm({ open, products, onClose, onSave }) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Số lượng điều chỉnh
+              Số lượng điều chỉnh <span className="text-rose-500">*</span>
             </span>
             <input
               className="field tabular-nums text-right font-bold text-lg"
@@ -916,7 +916,7 @@ function AdjustmentForm({ open, products, onClose, onSave }) {
 
         <label className="block">
           <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-            Lý do điều chỉnh
+            Lý do điều chỉnh <span className="text-rose-500">*</span>
           </span>
           <textarea
             className="field min-h-24 resize-y"

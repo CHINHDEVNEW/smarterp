@@ -706,12 +706,13 @@ function SettleReturnModal({ open, row, businessId, onClose, onSaved }) {
       <form id="settle-return-form" className="space-y-4" onSubmit={submit}>
         <label className="block">
           <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-            Tài khoản tiền
+            Tài khoản tiền <span className="text-rose-500">*</span>
           </span>
           <select
             className="field"
             value={accountId}
             onChange={(event) => setAccountId(event.target.value)}
+            required
           >
             <option value="">Chọn tài khoản</option>
             {accounts.map((account) => (
@@ -724,7 +725,7 @@ function SettleReturnModal({ open, row, businessId, onClose, onSaved }) {
 
         <label className="block">
           <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">
-            Số tiền
+            Số tiền <span className="text-rose-500">*</span>
           </span>
           <input
             className="field tabular-nums text-right text-lg font-bold"

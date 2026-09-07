@@ -499,12 +499,13 @@ function CartContent({
 
         <label className="block">
           <span className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-700">
-            <Wallet size={14} className="text-slate-400" /> Tài khoản ghi nhận tiền
+            <Wallet size={14} className="text-slate-400" /> Tài khoản ghi nhận tiền <span className="text-rose-500">*</span>
           </span>
           <select
             className="field bg-white"
             value={accountId}
             onChange={(event) => onAccountChange(event.target.value)}
+            required
           >
             <option value="">Chọn tài khoản thu</option>
             {accounts.map((account) => (

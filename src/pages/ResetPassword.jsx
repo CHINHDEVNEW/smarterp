@@ -130,7 +130,7 @@ export default function ResetPassword({ canReset }) {
             <div className="mt-6 space-y-4">
               <label className="block">
                 <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
-                  Mật khẩu mới
+                  Mật khẩu mới <span className="text-rose-500">*</span>
                 </span>
                 <span className="relative block">
                   <LockKeyhole
@@ -158,7 +158,7 @@ export default function ResetPassword({ canReset }) {
 
               <label className="block">
                 <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
-                  Nhập lại mật khẩu
+                  Nhập lại mật khẩu <span className="text-rose-500">*</span>
                 </span>
                 <span className="relative block">
                   <ShieldCheck

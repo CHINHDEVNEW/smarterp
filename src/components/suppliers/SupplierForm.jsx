@@ -84,7 +84,6 @@ export default function SupplierForm({ open, supplier, businessId, onClose, onSa
       }
     >
       <form id="supplier-form" className="space-y-6" onSubmit={submit}>
-        <p className="text-xs text-slate-500"><span className="font-bold text-rose-500">*</span> là trường bắt buộc. Các trường còn lại có thể để trống.</p>
         <fieldset>
           <legend className="form-section-title"><Building2 size={18} /> Thông tin cơ bản</legend>
           <div className="form-grid">

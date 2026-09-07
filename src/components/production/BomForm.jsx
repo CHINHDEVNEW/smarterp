@@ -147,17 +147,17 @@ export default function BomForm({ open, bom, products, bomItems, onClose, onSave
         <fieldset>
           <legend className="form-section-title"><ClipboardList size={18} /> Thông tin định mức</legend>
           <div className="form-grid">
-            <Field label="Tên định mức" required className="sm:col-span-2"><input className="field" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Ví dụ: Sản phẩm tiêu chuẩn" autoFocus disabled={saving} /></Field>
+            <Field label="Tên định mức" required className="sm:col-span-2"><input className="field" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Ví dụ: Sản phẩm tiêu chuẩn" autoFocus disabled={saving} required /></Field>
             <Field label="Mã định mức"><input className="field" value={values.code} onChange={(event) => update('code', event.target.value)} placeholder="Tự sinh nếu để trống" disabled={saving || Boolean(bom)} /></Field>
             <Field label="Phiên bản"><input className="field" type="number" min="1" step="1" value={values.version} onChange={(event) => update('version', event.target.value)} disabled={saving} /></Field>
-            <Field label="Sản phẩm đầu ra" required className="sm:col-span-2"><select className="field" value={values.output_product_id} onChange={(event) => update('output_product_id', event.target.value)} disabled={saving}><option value="">Chọn thành phẩm</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.code || product.unit}</option>)}</select></Field>
-            <Field label="Sản lượng chuẩn"><input className="field" type="number" min="0.001" step="0.001" value={values.output_quantity} onChange={(event) => update('output_quantity', event.target.value)} disabled={saving} /></Field>
+            <Field label="Sản phẩm đầu ra" required className="sm:col-span-2"><select className="field" value={values.output_product_id} onChange={(event) => update('output_product_id', event.target.value)} disabled={saving} required><option value="">Chọn thành phẩm</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.code || product.unit}</option>)}</select></Field>
+            <Field label="Sản lượng chuẩn" required><input className="field" type="number" min="0.001" step="0.001" value={values.output_quantity} onChange={(event) => update('output_quantity', event.target.value)} disabled={saving} required /></Field>
             <Field label="Ghi chú"><input className="field" value={values.note} onChange={(event) => update('note', event.target.value)} placeholder="Điều kiện hoặc ghi chú" disabled={saving} /></Field>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend className="form-section-title"><Boxes size={18} /> Nguyên vật liệu</legend>
+          <legend className="form-section-title"><Boxes size={18} /> Nguyên vật liệu <span className="text-rose-500">*</span></legend>
           <div className="flex flex-col gap-2 sm:flex-row">
             <select className="field min-w-0 flex-1" value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} disabled={saving}><option value="">Chọn nguyên vật liệu để thêm</option>{availableProducts.map((product) => <option key={product.id} value={product.id}>{product.name} · Giá vốn {formatCurrency(product.cost_price)}</option>)}</select>
             <button className="btn-secondary" type="button" onClick={addItem} disabled={!selectedProductId || saving}><Plus size={17} /> Thêm vật tư</button>
@@ -175,5 +175,4 @@ export default function BomForm({ open, bom, products, bomItems, onClose, onSave
 function Field({ label, required = false, className = '', children }) {
   return <label className={`block ${className}`}><span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}{required && <span className="text-rose-500"> *</span>}</span>{children}</label>
 }
-
 

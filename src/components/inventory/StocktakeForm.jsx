@@ -104,8 +104,8 @@ export default function StocktakeForm({ open, products, onClose, onSave }) {
     >
       <form id="stocktake-form" className="space-y-6" onSubmit={submit}>
       <div className="form-grid">
-        <Field label="Ngày kiểm kê"><input className="field" type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={saving} required /></Field>
-        <Field label="Ghi chú kiểm kê"><input className="field" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ví dụ: Đối chiếu cuối ngày" disabled={saving} required /></Field>
+        <Field label="Ngày kiểm kê" required><input className="field" type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={saving} required /></Field>
+        <Field label="Ghi chú kiểm kê" required><input className="field" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ví dụ: Đối chiếu cuối ngày" disabled={saving} required /></Field>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -130,6 +130,7 @@ function SummaryCard({ label, value, tone = 'slate' }) {
   return <div className={'rounded-xl px-3 py-3 ' + toneClasses[tone]}><p className="truncate text-[11px] font-semibold opacity-70">{label}</p><p className="mt-1 truncate text-sm font-extrabold">{value}</p></div>
 }
 
-function Field({ label, className = '', children }) {
-  return <label className={'block ' + className}><span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</span>{children}</label>
+function Field({ label, required = false, className = '', children }) {
+  const isRequired = required || Boolean(children?.props?.required)
+  return <label className={'block ' + className}><span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}{isRequired && <span className="text-rose-500"> *</span>}</span>{children}</label>
 }
