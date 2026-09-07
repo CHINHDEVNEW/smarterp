@@ -9,12 +9,14 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  Trash2,
   Truck,
 } from 'lucide-react'
 import useBusiness from '../hooks/useBusiness'
 import useToast from '../hooks/useToast'
 import {
   createSupplier,
+  deleteSupplier,
   listSuppliers,
   setSupplierActive,
   subscribeToSuppliers,
@@ -31,9 +33,10 @@ import EmptyState from '../components/common/EmptyState'
 import Loading from '../components/common/Loading'
 import Pagination from '../components/common/Pagination'
 import usePagination from '../hooks/usePagination'
+import { formDraftKey, hasFormDraft } from '../lib/formDraft'
 
 export default function Suppliers() {
-  const { businessId } = useBusiness()
+  const { business, businessId } = useBusiness()
   const { showToast } = useToast()
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -44,6 +47,9 @@ export default function Suppliers() {
   const [editingSupplier, setEditingSupplier] = useState(null)
   const [deactivatingSupplier, setDeactivatingSupplier] = useState(null)
   const [deactivating, setDeactivating] = useState(false)
+  const [deletingSupplier, setDeletingSupplier] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const canDelete = ['owner', 'admin'].includes(String(business?.role || '').toLowerCase())
 
   const loadSuppliers = useCallback(
     async ({ quiet = false } = {}) => {
@@ -70,6 +76,13 @@ export default function Suppliers() {
     if (!businessId) return undefined
     return subscribeToSuppliers(businessId, () => loadSuppliers({ quiet: true }))
   }, [businessId, loadSuppliers])
+
+  useEffect(() => {
+    if (businessId && hasFormDraft(formDraftKey(businessId, 'supplier-new'))) {
+      setEditingSupplier(null)
+      setFormOpen(true)
+    }
+  }, [businessId])
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('vi')
@@ -144,6 +157,21 @@ export default function Suppliers() {
       await loadSuppliers({ quiet: true })
     } catch (actionError) {
       showToast(actionError.message || 'Không thể cập nhật nhà cung cấp.', 'error')
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deletingSupplier) return
+    setDeleting(true)
+    try {
+      await deleteSupplier(businessId, deletingSupplier.id)
+      showToast('Đã xóa nhà cung cấp.')
+      setDeletingSupplier(null)
+      await loadSuppliers({ quiet: true })
+    } catch (actionError) {
+      showToast(actionError.message || 'Không thể xóa nhà cung cấp.', 'error')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -294,6 +322,8 @@ export default function Suppliers() {
                       onEdit={() => openEdit(supplier)}
                       onDeactivate={() => setDeactivatingSupplier(supplier)}
                       onReactivate={() => reactivate(supplier)}
+                      canDelete={canDelete}
+                      onDelete={() => setDeletingSupplier(supplier)}
                     />
                   ))}
                 </tbody>
@@ -307,6 +337,8 @@ export default function Suppliers() {
                   onEdit={() => openEdit(supplier)}
                   onDeactivate={() => setDeactivatingSupplier(supplier)}
                   onReactivate={() => reactivate(supplier)}
+                  canDelete={canDelete}
+                  onDelete={() => setDeletingSupplier(supplier)}
                 />
               ))}
             </div>
@@ -324,6 +356,7 @@ export default function Suppliers() {
       <SupplierForm
         open={formOpen}
         supplier={editingSupplier}
+        businessId={businessId}
         onClose={() => setFormOpen(false)}
         onSave={saveSupplier}
       />
@@ -341,11 +374,21 @@ export default function Suppliers() {
         confirmLabel="Ngừng giao dịch"
         message="Hồ sơ và lịch sử nhập hàng vẫn được bảo lưu. Bạn có thể kích hoạt lại bất cứ lúc nào."
       />
+      <ConfirmDialog
+        open={Boolean(deletingSupplier)}
+        onClose={() => setDeletingSupplier(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Xóa vĩnh viễn nhà cung cấp?"
+        description={deletingSupplier ? `“${deletingSupplier.name}” sẽ bị xóa khỏi danh mục.` : ''}
+        confirmLabel="Xóa nhà cung cấp"
+        message="Chỉ nhà cung cấp chưa phát sinh chứng từ mới có thể xóa. Thao tác này không thể hoàn tác."
+      />
     </div>
   )
 }
 
-function SupplierRow({ supplier, onEdit, onDeactivate, onReactivate }) {
+function SupplierRow({ supplier, onEdit, onDeactivate, onReactivate, canDelete, onDelete }) {
   return (
     <tr className="transition-colors hover:bg-slate-50/80">
       <td className="px-5 py-4">
@@ -405,13 +448,18 @@ function SupplierRow({ supplier, onEdit, onDeactivate, onReactivate }) {
               <ArchiveRestore size={17} />
             </button>
           )}
+          {canDelete && (
+            <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa ${supplier.name}`}>
+              <Trash2 size={17} />
+            </button>
+          )}
         </div>
       </td>
     </tr>
   )
 }
 
-function SupplierCard({ supplier, onEdit, onDeactivate, onReactivate }) {
+function SupplierCard({ supplier, onEdit, onDeactivate, onReactivate, canDelete, onDelete }) {
   return (
     <article className="p-4">
       <div className="flex items-start gap-3">
@@ -480,6 +528,11 @@ function SupplierCard({ supplier, onEdit, onDeactivate, onReactivate }) {
             aria-label="Kích hoạt lại"
           >
             <ArchiveRestore size={17} />
+          </button>
+        )}
+        {canDelete && (
+          <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label="Xóa nhà cung cấp">
+            <Trash2 size={17} />
           </button>
         )}
       </div>

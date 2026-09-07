@@ -91,6 +91,20 @@ export async function setCustomerActive(businessId, customerId, active) {
   return updateCustomer(businessId, customerId, { active })
 }
 
+export async function deleteCustomer(businessId, customerId) {
+  const { data, error } = await supabase
+    .from('customers')
+    .delete()
+    .eq('business_id', businessId)
+    .eq('id', customerId)
+    .select('id')
+    .single()
+
+  if (error?.code === '23503') throw new Error('Khách hàng đã phát sinh chứng từ. Hãy ngừng giao dịch thay vì xóa.')
+  if (error) throw new Error(error.code === 'PGRST116' ? 'Bạn không có quyền xóa khách hàng này.' : (error.message || 'Không thể xóa khách hàng.'))
+  return data
+}
+
 export function subscribeToCustomers(businessId, onChange) {
   const channel = supabase
     .channel(`customers:${businessId}`)

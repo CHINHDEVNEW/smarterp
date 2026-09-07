@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { BadgeDollarSign, MapPin, Save, UserRound } from 'lucide-react'
 import Modal from '../common/Modal'
+import { clearFormDraft, formDraftKey, loadFormDraft, saveFormDraft } from '../../lib/formDraft'
 
 const initialValues = {
   code: '',
@@ -35,19 +36,29 @@ function optionalText(value) {
   return normalized || null
 }
 
-export default function CustomerForm({ open, customer, onClose, onSave }) {
+export default function CustomerForm({ open, customer, businessId, onClose, onSave }) {
   const [values, setValues] = useState(initialValues)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const draftKey = formDraftKey(businessId, 'customer-new')
 
   useEffect(() => {
     if (!open) return
-    setValues(valuesFromCustomer(customer))
+    setValues(customer ? valuesFromCustomer(customer) : (loadFormDraft(draftKey) ?? initialValues))
     setError('')
-  }, [open, customer])
+  }, [customer, draftKey, open])
+
+  useEffect(() => {
+    if (open && !customer) saveFormDraft(draftKey, values)
+  }, [customer, draftKey, open, values])
 
   function update(field, value) {
     setValues((current) => ({ ...current, [field]: value }))
+  }
+
+  function closeForm() {
+    if (!customer) clearFormDraft(draftKey)
+    onClose()
   }
 
   async function handleSubmit(event) {
@@ -80,6 +91,7 @@ export default function CustomerForm({ open, customer, onClose, onSave }) {
     setSaving(true)
     try {
       await onSave(payload)
+      if (!customer) clearFormDraft(draftKey)
     } catch (saveError) {
       setError(saveError.message || 'Không thể lưu khách hàng.')
     } finally {
@@ -90,7 +102,7 @@ export default function CustomerForm({ open, customer, onClose, onSave }) {
   return (
     <Modal
       open={open}
-      onClose={saving ? () => {} : onClose}
+      onClose={saving ? () => {} : closeForm}
       title={customer ? 'Cập nhật khách hàng' : 'Thêm khách hàng mới'}
       description={customer ? 'Chỉnh sửa thông tin liên hệ và chính sách công nợ.' : 'Tạo hồ sơ để theo dõi giao dịch và công nợ.'}
       icon={UserRound}
@@ -99,16 +111,17 @@ export default function CustomerForm({ open, customer, onClose, onSave }) {
       size="lg"
       footer={
         <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>Hủy</button>
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={closeForm} disabled={saving}>Hủy</button>
           <button className="btn-primary w-full sm:w-auto" type="submit" form="customer-form" disabled={saving}><Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu khách hàng'}</button>
         </div>
       }
     >
       <form id="customer-form" className="space-y-6" onSubmit={handleSubmit}>
+        <p className="text-xs text-slate-500"><span className="font-bold text-rose-500">*</span> là trường bắt buộc. Các trường còn lại có thể để trống.</p>
         <fieldset>
           <legend className="form-section-title"><UserRound size={18} /> Thông tin khách hàng</legend>
           <div className="form-grid">
-            <Field label="Tên khách hàng" required className="sm:col-span-2"><input className="field" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Cá nhân hoặc doanh nghiệp" autoFocus /></Field>
+            <Field label="Tên khách hàng" required className="sm:col-span-2"><input className="field" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Cá nhân hoặc doanh nghiệp" autoFocus required /></Field>
             <Field label="Mã khách hàng"><input className="field" value={values.code} onChange={(event) => update('code', event.target.value)} placeholder="Tự sinh nếu để trống" /></Field>
             <Field label="Nhóm khách hàng"><input className="field" value={values.customer_group} onChange={(event) => update('customer_group', event.target.value)} placeholder="Ví dụ: Khách lẻ" /></Field>
             <Field label="Số điện thoại"><input className="field" type="tel" value={values.phone} onChange={(event) => update('phone', event.target.value)} placeholder="09xx xxx xxx" /></Field>

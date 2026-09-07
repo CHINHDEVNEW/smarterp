@@ -2,22 +2,69 @@
 import { useEffect, useState } from 'react'
 import { Building2, Phone, Save } from 'lucide-react'
 import Modal from '../common/Modal'
+import { clearFormDraft, formDraftKey, loadFormDraft, saveFormDraft } from '../../lib/formDraft'
 
 const emptyValues = { code: '', name: '', contact_person: '', phone: '', email: '', tax_code: '', website: '', supplier_group: '', address: '', note: '', active: true }
-function fromSupplier(supplier) { return supplier ? { ...emptyValues, ...supplier } : emptyValues }
-function optionalText(value) { const normalized = value.trim(); return normalized || null }
+function fromSupplier(supplier) {
+  if (!supplier) return emptyValues
+  return {
+    code: supplier.code ?? '',
+    name: supplier.name ?? '',
+    contact_person: supplier.contact_person ?? '',
+    phone: supplier.phone ?? '',
+    email: supplier.email ?? '',
+    tax_code: supplier.tax_code ?? '',
+    website: supplier.website ?? '',
+    supplier_group: supplier.supplier_group ?? '',
+    address: supplier.address ?? '',
+    note: supplier.note ?? '',
+    active: supplier.active ?? true,
+  }
+}
+function optionalText(value) { const normalized = String(value ?? '').trim(); return normalized || null }
 
-export default function SupplierForm({ open, supplier, onClose, onSave }) {
+export default function SupplierForm({ open, supplier, businessId, onClose, onSave }) {
   const [values, setValues] = useState(emptyValues)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  useEffect(() => { if (open) { setValues(fromSupplier(supplier)); setError('') } }, [open, supplier])
+  const draftKey = formDraftKey(businessId, 'supplier-new')
+  useEffect(() => { if (open) { setValues(supplier ? fromSupplier(supplier) : (loadFormDraft(draftKey) ?? emptyValues)); setError('') } }, [draftKey, open, supplier])
+  useEffect(() => { if (open && !supplier) saveFormDraft(draftKey, values) }, [draftKey, open, supplier, values])
   function update(field, value) { setValues((current) => ({ ...current, [field]: value })) }
-  async function submit(event) { event.preventDefault(); if (!values.name.trim()) return setError('Vui lòng nhập tên nhà cung cấp.'); setSaving(true); setError(''); try { await onSave({ code: optionalText(values.code), name: values.name.trim(), contact_person: optionalText(values.contact_person), phone: optionalText(values.phone), email: optionalText(values.email), tax_code: optionalText(values.tax_code), website: optionalText(values.website), supplier_group: optionalText(values.supplier_group), address: optionalText(values.address), note: optionalText(values.note), active: values.active }) } catch (saveError) { setError(saveError.message || 'Không thể lưu nhà cung cấp.') } finally { setSaving(false) } }
+  function closeForm() { if (!supplier) clearFormDraft(draftKey); onClose() }
+  async function submit(event) {
+    event.preventDefault()
+    if (saving) return
+    if (!values.name.trim()) return setError('Vui lòng nhập tên nhà cung cấp.')
+    const payload = {
+      code: optionalText(values.code),
+      name: values.name.trim(),
+      contact_person: optionalText(values.contact_person),
+      phone: optionalText(values.phone),
+      email: optionalText(values.email),
+      tax_code: optionalText(values.tax_code),
+      website: optionalText(values.website),
+      supplier_group: optionalText(values.supplier_group),
+      address: optionalText(values.address),
+      note: optionalText(values.note),
+      active: values.active,
+    }
+    if (!payload.code) delete payload.code
+    setSaving(true)
+    setError('')
+    try {
+      await onSave(payload)
+      if (!supplier) clearFormDraft(draftKey)
+    } catch (saveError) {
+      setError(saveError.message || 'Không thể lưu nhà cung cấp.')
+    } finally {
+      setSaving(false)
+    }
+  }
   return (
     <Modal
       open={open}
-      onClose={saving ? () => {} : onClose}
+      onClose={saving ? () => {} : closeForm}
       title={supplier ? 'Cập nhật nhà cung cấp' : 'Thêm nhà cung cấp mới'}
       description="Lưu thông tin liên hệ để theo dõi các phiếu nhập và công nợ phải trả."
       icon={Building2}
@@ -26,7 +73,7 @@ export default function SupplierForm({ open, supplier, onClose, onSave }) {
       size="lg"
       footer={
         <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={closeForm} disabled={saving}>
             Hủy
           </button>
           <button className="btn-primary w-full sm:w-auto" type="submit" form="supplier-form" disabled={saving}>
@@ -37,11 +84,12 @@ export default function SupplierForm({ open, supplier, onClose, onSave }) {
       }
     >
       <form id="supplier-form" className="space-y-6" onSubmit={submit}>
+        <p className="text-xs text-slate-500"><span className="font-bold text-rose-500">*</span> là trường bắt buộc. Các trường còn lại có thể để trống.</p>
         <fieldset>
           <legend className="form-section-title"><Building2 size={18} /> Thông tin cơ bản</legend>
           <div className="form-grid">
             <Field label="Tên nhà cung cấp" required className="sm:col-span-2">
-              <input className="field" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Tên công ty hoặc cá nhân" autoFocus />
+              <input className="field" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Tên công ty hoặc cá nhân" autoFocus required />
             </Field>
             <Field label="Mã nhà cung cấp">
               <input className="field uppercase font-semibold" value={values.code} onChange={(event) => update('code', event.target.value)} placeholder="Tự sinh nếu để trống" />

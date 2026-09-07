@@ -12,6 +12,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom'
 import useAuth from '../../hooks/useAuth'
 import useBusiness from '../../hooks/useBusiness'
+import { clearAllFormDrafts } from '../../lib/formDraft'
 import { supabase } from '../../lib/supabase'
 import useToast from '../../hooks/useToast'
 
@@ -71,6 +72,7 @@ export default function Header({ onOpenSidebar }) {
     setProfileOpen(false)
     const { error } = await supabase.auth.signOut()
     if (error) showToast('Không thể đăng xuất. Vui lòng thử lại.', 'error')
+    else clearAllFormDrafts()
   }
 
   const initials = (business?.name || user?.email || 'SE')

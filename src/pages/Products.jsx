@@ -31,6 +31,7 @@ import usePagination from '../hooks/usePagination'
 import Pagination from '../components/common/Pagination'
 import { canAccess } from '../lib/permissions'
 import { removeProductImageByUrl } from '../services/productImageService'
+import { formDraftKey, hasFormDraft } from '../lib/formDraft'
 
 function getStockState(product) {
   if (!product.active) return { label: 'Ngừng bán', className: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200' }
@@ -111,6 +112,13 @@ export default function Products() {
       setSearchParams(next, { replace: true })
     }
   }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (businessId && hasFormDraft(formDraftKey(businessId, 'product-new'))) {
+      setEditingProduct(null)
+      setFormOpen(true)
+    }
+  }, [businessId])
 
   const filteredProducts = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('vi')

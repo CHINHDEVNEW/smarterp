@@ -9,6 +9,7 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  Trash2,
   UserRound,
   Users,
   WalletCards,
@@ -17,6 +18,7 @@ import useBusiness from '../hooks/useBusiness'
 import useToast from '../hooks/useToast'
 import {
   createCustomer,
+  deleteCustomer,
   listCustomersWithSummary,
   setCustomerActive,
   subscribeToCustomers,
@@ -33,6 +35,7 @@ import EmptyState from '../components/common/EmptyState'
 import Loading from '../components/common/Loading'
 import Pagination from '../components/common/Pagination'
 import usePagination from '../hooks/usePagination'
+import { formDraftKey, hasFormDraft } from '../lib/formDraft'
 
 function customerStatus(customer) {
   if (!customer.active) return { label: 'Ngừng giao dịch', tone: 'slate' }
@@ -47,7 +50,7 @@ function customerStatus(customer) {
 }
 
 export default function Customers() {
-  const { businessId } = useBusiness()
+  const { business, businessId } = useBusiness()
   const { showToast } = useToast()
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +61,9 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState(null)
   const [deactivatingCustomer, setDeactivatingCustomer] = useState(null)
   const [deactivating, setDeactivating] = useState(false)
+  const [deletingCustomer, setDeletingCustomer] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const canDelete = ['owner', 'admin'].includes(String(business?.role || '').toLowerCase())
 
   const loadCustomers = useCallback(
     async ({ quiet = false } = {}) => {
@@ -84,6 +90,13 @@ export default function Customers() {
     if (!businessId) return undefined
     return subscribeToCustomers(businessId, () => loadCustomers({ quiet: true }))
   }, [businessId, loadCustomers])
+
+  useEffect(() => {
+    if (businessId && hasFormDraft(formDraftKey(businessId, 'customer-new'))) {
+      setEditingCustomer(null)
+      setFormOpen(true)
+    }
+  }, [businessId])
 
   const filteredCustomers = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('vi')
@@ -160,6 +173,21 @@ export default function Customers() {
       await loadCustomers({ quiet: true })
     } catch (actionError) {
       showToast(actionError.message || 'Không thể cập nhật khách hàng.', 'error')
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deletingCustomer) return
+    setDeleting(true)
+    try {
+      await deleteCustomer(businessId, deletingCustomer.id)
+      showToast('Đã xóa khách hàng.')
+      setDeletingCustomer(null)
+      await loadCustomers({ quiet: true })
+    } catch (actionError) {
+      showToast(actionError.message || 'Không thể xóa khách hàng.', 'error')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -334,6 +362,8 @@ export default function Customers() {
                       onEdit={() => openEdit(customer)}
                       onDeactivate={() => setDeactivatingCustomer(customer)}
                       onReactivate={() => reactivate(customer)}
+                      canDelete={canDelete}
+                      onDelete={() => setDeletingCustomer(customer)}
                     />
                   ))}
                 </tbody>
@@ -348,6 +378,8 @@ export default function Customers() {
                   onEdit={() => openEdit(customer)}
                   onDeactivate={() => setDeactivatingCustomer(customer)}
                   onReactivate={() => reactivate(customer)}
+                  canDelete={canDelete}
+                  onDelete={() => setDeletingCustomer(customer)}
                 />
               ))}
             </div>
@@ -366,6 +398,7 @@ export default function Customers() {
       <CustomerForm
         open={formOpen}
         customer={editingCustomer}
+        businessId={businessId}
         onClose={() => setFormOpen(false)}
         onSave={saveCustomer}
       />
@@ -383,11 +416,21 @@ export default function Customers() {
         confirmLabel="Ngừng giao dịch"
         message="Hồ sơ và lịch sử giao dịch vẫn được giữ nguyên. Bạn có thể kích hoạt lại khách hàng bất cứ lúc nào."
       />
+      <ConfirmDialog
+        open={Boolean(deletingCustomer)}
+        onClose={() => setDeletingCustomer(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Xóa vĩnh viễn khách hàng?"
+        description={deletingCustomer ? `“${deletingCustomer.name}” sẽ bị xóa khỏi danh mục.` : ''}
+        confirmLabel="Xóa khách hàng"
+        message="Chỉ khách hàng chưa phát sinh chứng từ mới có thể xóa. Thao tác này không thể hoàn tác."
+      />
     </div>
   )
 }
 
-function CustomerRow({ customer, onEdit, onDeactivate, onReactivate }) {
+function CustomerRow({ customer, onEdit, onDeactivate, onReactivate, canDelete, onDelete }) {
   const status = customerStatus(customer)
   return (
     <tr className="transition-colors hover:bg-slate-50/80">
@@ -456,13 +499,18 @@ function CustomerRow({ customer, onEdit, onDeactivate, onReactivate }) {
               <ArchiveRestore size={17} />
             </button>
           )}
+          {canDelete && (
+            <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa ${customer.name}`}>
+              <Trash2 size={17} />
+            </button>
+          )}
         </div>
       </td>
     </tr>
   )
 }
 
-function CustomerCard({ customer, onEdit, onDeactivate, onReactivate }) {
+function CustomerCard({ customer, onEdit, onDeactivate, onReactivate, canDelete, onDelete }) {
   const status = customerStatus(customer)
   return (
     <article className="p-4">
@@ -543,6 +591,11 @@ function CustomerCard({ customer, onEdit, onDeactivate, onReactivate }) {
             aria-label="Kích hoạt lại"
           >
             <ArchiveRestore size={17} />
+          </button>
+        )}
+        {canDelete && (
+          <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label="Xóa khách hàng">
+            <Trash2 size={17} />
           </button>
         )}
       </div>

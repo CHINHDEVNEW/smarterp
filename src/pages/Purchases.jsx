@@ -19,6 +19,7 @@ import PageHeader from '../components/common/PageHeader'
 import MetricCard from '../components/common/MetricCard'
 import FilterBar from '../components/common/FilterBar'
 import StatusBadge from '../components/common/StatusBadge'
+import { formDraftKey, hasFormDraft } from '../lib/formDraft'
 
 const statusLabels = { draft: 'Bản nháp', confirmed: 'Đã xác nhận', completed: 'Hoàn tất', cancelled: 'Đã hủy' }
 
@@ -62,6 +63,10 @@ export default function Purchases() {
     if (!businessId) return undefined
     return subscribeToPurchaseOrders(businessId, () => loadOrders({ quiet: true }))
   }, [businessId, loadOrders])
+
+  useEffect(() => {
+    if (businessId && hasFormDraft(formDraftKey(businessId, 'purchase-new'))) setFormOpen(true)
+  }, [businessId])
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('vi')

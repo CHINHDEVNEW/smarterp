@@ -6,6 +6,7 @@ import { listProducts } from '../../services/productService'
 import { listSuppliers } from '../../services/supplierService'
 import { formatCurrency, localDateKey } from '../../lib/formatters'
 import useBusiness from '../../hooks/useBusiness'
+import { clearFormDraft, formDraftKey, loadFormDraft, saveFormDraft } from '../../lib/formDraft'
 
 const initialOrder = { supplier_id: '', order_date: localDateKey(), due_date: '', discount: '0', shipping_fee: '0', vat_rate: '0', note: '' }
 
@@ -20,11 +21,13 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
   const [loadingData, setLoadingData] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const draftKey = formDraftKey(businessId, 'purchase-new')
 
   useEffect(() => {
     if (!open || !businessId) return
-    setOrder({ ...initialOrder, order_date: localDateKey(), vat_rate: String(defaultVat) })
-    setItems([])
+    const draft = loadFormDraft(draftKey)
+    setOrder(draft?.order ?? { ...initialOrder, order_date: localDateKey(), vat_rate: String(defaultVat) })
+    setItems(Array.isArray(draft?.items) ? draft.items : [])
     setSelectedProductId('')
     setError('')
     setLoadingData(true)
@@ -35,7 +38,11 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
       })
       .catch((loadError) => setError(loadError.message || 'Không tải được dữ liệu lập phiếu nhập.'))
       .finally(() => setLoadingData(false))
-  }, [businessId, defaultVat, open])
+  }, [businessId, defaultVat, draftKey, open])
+
+  useEffect(() => {
+    if (open) saveFormDraft(draftKey, { order, items })
+  }, [draftKey, items, open, order])
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0), 0), [items])
   const discount = Math.max(0, Number(order.discount) || 0)
@@ -83,11 +90,25 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
     setItems((current) => current.filter((item) => item.product_id !== productId))
   }
 
+  function closeForm() {
+    clearFormDraft(draftKey)
+    onClose()
+  }
+
   async function submit(event) {
     event.preventDefault()
+    if (saving) return
     setError('')
+    if (!order.order_date) return setError('Vui lòng chọn ngày nhập hàng.')
+    if (order.due_date && order.due_date < order.order_date) return setError('Hạn thanh toán không được trước ngày nhập hàng.')
     if (!items.length) return setError('Vui lòng thêm ít nhất một sản phẩm vào phiếu.')
-    if (items.some((item) => Number(item.quantity) <= 0 || Number(item.unit_cost) < 0)) return setError('Số lượng và giá nhập phải hợp lệ.')
+    const normalizedItems = items.map((item) => ({
+      product_id: item.product_id,
+      quantity: Number(item.quantity),
+      unit_cost: Number(item.unit_cost),
+      note: null,
+    }))
+    if (normalizedItems.some((item) => !item.product_id || !Number.isFinite(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.unit_cost) || item.unit_cost < 0)) return setError('Số lượng và giá nhập phải hợp lệ.')
     if (discount > subtotal) return setError('Tiền giảm giá không được lớn hơn tiền hàng.')
     setSaving(true)
     try {
@@ -101,13 +122,9 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
           vat_rate: Math.max(0, Number(order.vat_rate) || 0),
           note: order.note.trim() || null,
         },
-        items: items.map((item) => ({
-          product_id: item.product_id,
-          quantity: Number(item.quantity),
-          unit_cost: Number(item.unit_cost),
-          note: null,
-        })),
+        items: normalizedItems,
       })
+      clearFormDraft(draftKey)
     } catch (saveError) {
       setError(saveError.message || 'Không thể tạo phiếu nhập.')
     } finally {
@@ -118,7 +135,7 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
   return (
     <Modal
       open={open}
-      onClose={saving ? () => {} : onClose}
+      onClose={saving ? () => {} : closeForm}
       title="Tạo phiếu nhập hàng"
       description="Phiếu được xác nhận ngay và tự động cộng vào tồn kho."
       size="lg"
@@ -127,7 +144,7 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
       badge="Phiếu nhập hàng"
       footer={
         <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={closeForm} disabled={saving}>
             Hủy
           </button>
           <button className="btn-primary w-full sm:w-auto" type="submit" form="purchase-form" disabled={saving || loadingData}>
@@ -138,10 +155,11 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
       }
     >
       <form id="purchase-form" className="space-y-6" onSubmit={submit}>
+        <p className="text-xs text-slate-500"><span className="font-bold text-rose-500">*</span> là trường bắt buộc. Các trường còn lại có thể để trống.</p>
         <fieldset>
           <legend className="form-section-title"><Truck size={18} /> Nhà cung cấp và thời gian</legend>
           <div className="form-grid">
-            <Field label="Nhà cung cấp" className="sm:col-span-2">
+            <Field label="Nhà cung cấp (tùy chọn)" className="sm:col-span-2">
               <select className="field" value={order.supplier_id} onChange={(event) => updateOrder('supplier_id', event.target.value)} disabled={loadingData}>
                 <option value="">Không chọn nhà cung cấp</option>
                 {suppliers.map((supplier) => (
@@ -149,7 +167,7 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
                 ))}
               </select>
             </Field>
-            <Field label="Ngày nhập">
+            <Field label="Ngày nhập" required>
               <input className="field" type="date" value={order.order_date} onChange={(event) => updateOrder('order_date', event.target.value)} required />
             </Field>
             <Field label="Hạn thanh toán">
@@ -159,7 +177,7 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
         </fieldset>
 
         <fieldset>
-          <legend className="form-section-title"><ShoppingCart size={18} /> Sản phẩm nhập</legend>
+          <legend className="form-section-title"><ShoppingCart size={18} /> Sản phẩm nhập <span className="text-rose-500">*</span></legend>
           <div className="flex gap-2">
             <select className="field min-w-0 flex-1" value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} disabled={loadingData}>
               <option value="">{loadingData ? 'Đang tải sản phẩm...' : 'Chọn sản phẩm để thêm'}</option>
@@ -191,19 +209,19 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
                     </button>
                   </div>
                   <div className="mt-3 grid grid-cols-[1fr_1.5fr] gap-3 sm:grid-cols-[140px_1fr_auto] sm:items-end">
-                    <Field label="Số lượng">
+                    <Field label="Số lượng" required>
                       <div className="flex">
                         <button className="grid w-10 place-items-center rounded-l-xl border border-r-0 border-slate-200 text-slate-500" type="button" onClick={() => updateItem(item.product_id, 'quantity', String(Math.max(1, (Number(item.quantity) || 1) - 1)))}>
                           <Minus size={15} />
                         </button>
-                        <input className="field rounded-none text-center" type="number" min="0.001" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.product_id, 'quantity', event.target.value)} />
+                        <input className="field rounded-none text-center" type="number" min="0.001" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.product_id, 'quantity', event.target.value)} required />
                         <button className="grid w-10 place-items-center rounded-r-xl border border-l-0 border-slate-200 text-slate-500" type="button" onClick={() => updateItem(item.product_id, 'quantity', String((Number(item.quantity) || 0) + 1))}>
                           <Plus size={15} />
                         </button>
                       </div>
                     </Field>
-                    <Field label="Giá nhập">
-                      <input className="field text-right" type="number" min="0" step="1" value={item.unit_cost} onChange={(event) => updateItem(item.product_id, 'unit_cost', event.target.value)} />
+                    <Field label="Giá nhập" required>
+                      <input className="field text-right" type="number" min="0" step="1" value={item.unit_cost} onChange={(event) => updateItem(item.product_id, 'unit_cost', event.target.value)} required />
                     </Field>
                     <div className="col-span-2 text-right sm:col-span-1 sm:min-w-32">
                       <p className="text-xs font-medium text-slate-400">Thành tiền</p>
@@ -247,10 +265,10 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
   )
 }
 
-function Field({ label, className = '', children }) {
+function Field({ label, required = false, className = '', children }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}{required && <span className="text-rose-500"> *</span>}</span>
       {children}
     </label>
   )

@@ -4,6 +4,7 @@ import { BadgeDollarSign, Image, Package, Save, Upload, Warehouse, X } from 'luc
 import Modal from '../common/Modal'
 import { formatCurrency, formatNumber } from '../../lib/formatters'
 import { removeProductImage, uploadProductImage, validateProductImage } from '../../services/productImageService'
+import { clearFormDraft, formDraftKey, loadFormDraft, saveFormDraft } from '../../lib/formDraft'
 
 const initialValues = {
   code: '',
@@ -53,14 +54,19 @@ export default function ProductForm({ open, product, businessId, onClose, onSave
   const [error, setError] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
+  const draftKey = formDraftKey(businessId, 'product-new')
 
   useEffect(() => {
     if (!open) return
-    setValues(valuesFromProduct(product))
+    setValues(product ? valuesFromProduct(product) : (loadFormDraft(draftKey) ?? initialValues))
     setError('')
     setImageFile(null)
     setImagePreview('')
-  }, [open, product])
+  }, [draftKey, open, product])
+
+  useEffect(() => {
+    if (open && !product) saveFormDraft(draftKey, values)
+  }, [draftKey, open, product, values])
 
   useEffect(() => () => {
     if (imagePreview) URL.revokeObjectURL(imagePreview)
@@ -93,6 +99,11 @@ export default function ProductForm({ open, product, businessId, onClose, onSave
   function clearSelectedImage() {
     setImageFile(null)
     setImagePreview('')
+  }
+
+  function closeForm() {
+    if (!product) clearFormDraft(draftKey)
+    onClose()
   }
 
   async function handleSubmit(event) {
@@ -145,6 +156,7 @@ export default function ProductForm({ open, product, businessId, onClose, onSave
         payload.image_url = uploadedImage.publicUrl
       }
       await onSave(payload)
+      if (!product) clearFormDraft(draftKey)
     } catch (saveError) {
       await removeProductImage(uploadedImagePath)
       setError(saveError.message || 'Không thể lưu sản phẩm.')
@@ -156,7 +168,7 @@ export default function ProductForm({ open, product, businessId, onClose, onSave
   return (
     <Modal
       open={open}
-      onClose={saving ? () => {} : onClose}
+      onClose={saving ? () => {} : closeForm}
       title={product ? 'Cập nhật sản phẩm' : 'Thêm sản phẩm mới'}
       description={product ? 'Chỉnh sửa thông tin bán hàng và định mức tồn kho.' : 'Tạo mặt hàng hoặc dịch vụ trong danh mục.'}
       icon={Package}
@@ -165,12 +177,13 @@ export default function ProductForm({ open, product, businessId, onClose, onSave
       size="lg"
       footer={
         <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={onClose} disabled={saving}>Hủy</button>
+          <button className="btn-secondary w-full sm:w-auto" type="button" onClick={closeForm} disabled={saving}>Hủy</button>
           <button className="btn-primary w-full sm:w-auto" type="submit" form="product-form" disabled={saving}><Save size={17} /> {saving ? 'Đang lưu...' : 'Lưu sản phẩm'}</button>
         </div>
       }
     >
       <form id="product-form" onSubmit={handleSubmit} className="space-y-6">
+        <p className="text-xs text-slate-500"><span className="font-bold text-rose-500">*</span> là trường bắt buộc. Các trường còn lại có thể để trống.</p>
         <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-100 p-1.5">
           <button className={`rounded-xl px-3 py-3 text-sm font-bold transition ${values.product_type === 'goods' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} type="button" onClick={() => update('product_type', 'goods')}><span className="flex items-center justify-center gap-2"><Package size={18} /> Hàng hóa</span></button>
           <button className={`rounded-xl px-3 py-3 text-sm font-bold transition ${values.product_type === 'service' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`} type="button" onClick={() => update('product_type', 'service')}><span className="flex items-center justify-center gap-2"><BadgeDollarSign size={18} /> Dịch vụ</span></button>
@@ -179,11 +192,11 @@ export default function ProductForm({ open, product, businessId, onClose, onSave
         <fieldset>
           <legend className="form-section-title"><Package size={18} /> Thông tin cơ bản</legend>
           <div className="form-grid">
-            <Field label="Tên sản phẩm / dịch vụ" required className="sm:col-span-2"><input className="field" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Ví dụ: Cà phê rang xay" autoFocus /></Field>
+            <Field label="Tên sản phẩm / dịch vụ" required className="sm:col-span-2"><input className="field" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="Ví dụ: Cà phê rang xay" autoFocus required /></Field>
             <Field label="Mã sản phẩm"><input className="field" value={values.code} onChange={(event) => update('code', event.target.value)} placeholder="Tự sinh nếu để trống" /></Field>
             <Field label="SKU"><input className="field" value={values.sku} onChange={(event) => update('sku', event.target.value)} placeholder="Mã quản lý nội bộ" /></Field>
             <Field label="Barcode"><input className="field" value={values.barcode} onChange={(event) => update('barcode', event.target.value)} placeholder="Quét hoặc nhập mã vạch" /></Field>
-            <Field label="Đơn vị"><input className="field" value={values.unit} onChange={(event) => update('unit', event.target.value)} placeholder={values.product_type === 'service' ? 'lần, giờ, gói...' : 'cái, hộp, kg...'} /></Field>
+            <Field label="Đơn vị" required><input className="field" value={values.unit} onChange={(event) => update('unit', event.target.value)} placeholder={values.product_type === 'service' ? 'lần, giờ, gói...' : 'cái, hộp, kg...'} required /></Field>
             <Field label="Nhóm hàng" className="sm:col-span-2"><input className="field" value={values.category} onChange={(event) => update('category', event.target.value)} placeholder="Ví dụ: Đồ uống" /></Field>
           </div>
         </fieldset>
