@@ -65,6 +65,16 @@ export async function createStocktake(businessId, values) {
   return data
 }
 
+export async function cancelStocktake(businessId, stocktakeId, reason) {
+  const { data, error } = await supabase.rpc('app_cancel_stocktake', {
+    p_business_id: businessId,
+    p_stocktake_id: stocktakeId,
+    p_reason: reason,
+  })
+  throwIfError(error, 'Không thể hủy phiếu kiểm kê.')
+  return data
+}
+
 export function subscribeToInventory(businessId, onChange) {
   const channel = supabase
     .channel(`inventory:${businessId}`)

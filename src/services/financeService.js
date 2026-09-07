@@ -69,6 +69,24 @@ export async function updateFinanceAccount(businessId, accountId, values) {
   return data
 }
 
+export async function deleteFinanceAccount(businessId, accountId) {
+  const { data, error } = await supabase.rpc('app_delete_finance_account', {
+    p_business_id: businessId,
+    p_account_id: accountId,
+  })
+  throwIfError(error, 'Không thể xóa tài khoản tiền.')
+  return data
+}
+
+export async function deleteManualFinanceTransaction(businessId, transactionId) {
+  const { data, error } = await supabase.rpc('app_delete_manual_finance_transaction', {
+    p_business_id: businessId,
+    p_transaction_id: transactionId,
+  })
+  throwIfError(error, 'Không thể xóa giao dịch thu chi.')
+  return data
+}
+
 export async function recordSalesPayment(businessId, values) {
   const { data, error } = await supabase.rpc('app_record_sales_payment', {
     p_business_id: businessId,

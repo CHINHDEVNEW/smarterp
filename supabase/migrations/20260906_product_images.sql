@@ -28,6 +28,7 @@ with check (
     where bm.user_id = auth.uid()
       and bm.active = true
       and bm.business_id::text = (storage.foldername(name))[1]
+      and lower(bm.role::text) in ('owner', 'admin', 'manager', 'warehouse', 'purchasing')
   )
 );
 
@@ -43,6 +44,7 @@ using (
     where bm.user_id = auth.uid()
       and bm.active = true
       and bm.business_id::text = (storage.foldername(name))[1]
+      and lower(bm.role::text) in ('owner', 'admin', 'manager', 'warehouse', 'purchasing')
   )
 )
 with check (
@@ -53,6 +55,7 @@ with check (
     where bm.user_id = auth.uid()
       and bm.active = true
       and bm.business_id::text = (storage.foldername(name))[1]
+      and lower(bm.role::text) in ('owner', 'admin', 'manager', 'warehouse', 'purchasing')
   )
 );
 
@@ -68,5 +71,6 @@ using (
     where bm.user_id = auth.uid()
       and bm.active = true
       and bm.business_id::text = (storage.foldername(name))[1]
+      and lower(bm.role::text) in ('owner', 'admin', 'manager', 'warehouse', 'purchasing')
   )
 );

@@ -252,7 +252,7 @@ begin
     end if;
 
     execute format(
-      'insert into public.sales_return_items (%s) select %s from jsonb_populate_record(null::public.sales_return_items, $1)',
+      'insert into public.sales_return_items (%s) select %s from jsonb_populate_record(null::public.sales_return_items, $1) r',
       v_columns,
       v_values
     ) using v_item_payload;
@@ -262,7 +262,7 @@ begin
         business_id, product_id, movement_type, quantity, unit_cost,
         reference_type, reference_id, note, created_by
       ) values (
-        p_business_id, v_product_id, 'return', v_quantity, v_unit_cost,
+        p_business_id, v_product_id, 'adjustment', v_quantity, v_unit_cost,
         'sales_return', v_return_id, 'Nhập lại theo phiếu trả hàng ' || v_code, auth.uid()
       );
     end if;
@@ -558,7 +558,7 @@ begin
     end if;
 
     execute format(
-      'insert into public.purchase_return_items (%s) select %s from jsonb_populate_record(null::public.purchase_return_items, $1)',
+      'insert into public.purchase_return_items (%s) select %s from jsonb_populate_record(null::public.purchase_return_items, $1) r',
       v_columns,
       v_values
     ) using v_item_payload;
@@ -568,7 +568,7 @@ begin
         business_id, product_id, movement_type, quantity, unit_cost,
         reference_type, reference_id, note, created_by
       ) values (
-        p_business_id, v_product_id, 'return', -v_quantity, v_unit_cost,
+        p_business_id, v_product_id, 'adjustment', -v_quantity, v_unit_cost,
         'purchase_return', v_return_id, 'Xuất trả nhà cung cấp theo phiếu ' || v_code, auth.uid()
       );
     end if;

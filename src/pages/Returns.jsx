@@ -4,6 +4,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
+  Ban,
   Eye,
   PackageCheck,
   Plus,
@@ -14,6 +15,7 @@ import useToast from '../hooks/useToast'
 import {
   createPurchaseReturn,
   createSalesReturn,
+  cancelReturn,
   listReturnItems,
   listReturns,
   settleReturn,
@@ -31,6 +33,7 @@ import Modal from '../components/common/Modal'
 import ReturnForm from '../components/returns/ReturnForm'
 import Pagination from '../components/common/Pagination'
 import usePagination from '../hooks/usePagination'
+import CancelDocumentModal from '../components/common/CancelDocumentModal'
 
 const statusLabels = {
   draft: 'Bản nháp',
@@ -316,6 +319,7 @@ export default function Returns() {
         onClose={() => setViewing(null)}
         onSettled={async () => {
           setViewing(null)
+          showToast('Đã cập nhật phiếu trả hàng.')
           await loadReturns()
         }}
       />
@@ -454,6 +458,7 @@ function ReturnDetail({ open, row, businessId, onClose, onSettled }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [settleOpen, setSettleOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
 
   useEffect(() => {
     if (!open || !row || !businessId) {
@@ -502,10 +507,16 @@ function ReturnDetail({ open, row, businessId, onClose, onSettled }) {
         badge="Phiếu trả hàng"
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            {row.remainingAmount > 0 && (
+            {row.remainingAmount > 0 && !['cancelled', 'canceled'].includes(row.status.toLowerCase()) && (
               <button className="btn-primary flex-1 sm:flex-initial" type="button" onClick={() => setSettleOpen(true)}>
                 <Banknote size={17} />
                 <span>{row.type === 'sales' ? 'Hoàn tiền' : 'Nhận tiền'}</span>
+              </button>
+            )}
+            {!['cancelled', 'canceled'].includes(row.status.toLowerCase()) && (
+              <button className="btn-danger flex-1 sm:flex-initial" type="button" onClick={() => setCancelOpen(true)}>
+                <Ban size={17} />
+                <span>Hủy phiếu</span>
               </button>
             )}
             <button className="btn-secondary flex-1 sm:flex-initial" type="button" onClick={onClose}>
@@ -624,6 +635,17 @@ function ReturnDetail({ open, row, businessId, onClose, onSettled }) {
         businessId={businessId}
         onClose={() => setSettleOpen(false)}
         onSaved={onSettled}
+      />
+      <CancelDocumentModal
+        open={cancelOpen}
+        title={`Hủy phiếu ${row.code}?`}
+        description="Tồn kho và dòng tiền liên quan sẽ được đảo tự động."
+        onClose={() => setCancelOpen(false)}
+        onConfirm={async (reason) => {
+          await cancelReturn(businessId, row.type, row.rawId, reason)
+          setCancelOpen(false)
+          await onSettled()
+        }}
       />
     </>
   )

@@ -39,6 +39,15 @@ export async function updateQuoteStatus(businessId, quoteId, status) {
   return data
 }
 
+export async function deleteQuote(businessId, quoteId) {
+  const { data, error } = await supabase.rpc('app_delete_quote', {
+    p_business_id: businessId,
+    p_quote_id: quoteId,
+  })
+  throwIfError(error, 'Không thể xóa báo giá.')
+  return data
+}
+
 export async function convertQuoteToSales(businessId, quoteId, orderDate, dueDate = null) {
   const { data, error } = await supabase.rpc('app_convert_quote_to_sales', {
     p_business_id: businessId,

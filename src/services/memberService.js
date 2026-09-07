@@ -34,3 +34,7 @@ export async function inviteBusinessMember(businessId, email, role) {
 export async function updateBusinessMember(businessId, userId, values) {
   return invokeManageMembers({ action: 'update', businessId, userId, ...values })
 }
+
+export async function deleteBusinessMember(businessId, userId) {
+  return invokeManageMembers({ action: 'delete', businessId, userId })
+}

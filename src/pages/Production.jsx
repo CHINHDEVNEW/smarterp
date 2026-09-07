@@ -13,6 +13,7 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Target,
+  Trash2,
   XCircle,
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
@@ -28,12 +29,15 @@ import PageHeader from '../components/common/PageHeader'
 import MetricCard from '../components/common/MetricCard'
 import FilterBar from '../components/common/FilterBar'
 import StatusBadge from '../components/common/StatusBadge'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 import BomForm from '../components/production/BomForm'
 import ProductionOrderForm from '../components/production/ProductionOrderForm'
 import ProductionOrderDetail from '../components/production/ProductionOrderDetail'
 import {
   addProductionCost,
   createProductionOrder,
+  deleteProductionBom,
+  deleteProductionOrder,
   getProductionBomItems,
   getProductionOrderDetails,
   issueProductionMaterials,
@@ -80,6 +84,10 @@ export default function Production() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [orderDetails, setOrderDetails] = useState(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const [deletingBom, setDeletingBom] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deletingOrder, setDeletingOrder] = useState(null)
+  const [deletingOrderBusy, setDeletingOrderBusy] = useState(false)
 
   const canManage = canAccess(business?.role, 'production_manage')
   const canManageCosts = canAccess(business?.role, 'production_cost')
@@ -212,11 +220,41 @@ export default function Production() {
     }
   }
 
+  async function confirmDeleteBom() {
+    if (!deletingBom || deleting) return
+    setDeleting(true)
+    try {
+      await deleteProductionBom(businessId, deletingBom.id)
+      setDeletingBom(null)
+      showToast('Đã xóa định mức.')
+      await refreshQuiet()
+    } catch (deleteError) {
+      showToast(deleteError.message || 'Không thể xóa định mức.', 'error')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   async function saveOrder(order, materials) {
     await createProductionOrder(businessId, order, materials)
     showToast('Đã tạo lệnh sản xuất.')
     setOrderFormOpen(false)
     await refreshQuiet()
+  }
+
+  async function confirmDeleteOrder() {
+    if (!deletingOrder || deletingOrderBusy) return
+    setDeletingOrderBusy(true)
+    try {
+      await deleteProductionOrder(businessId, deletingOrder.id)
+      setDeletingOrder(null)
+      showToast('Đã xóa lệnh sản xuất.')
+      await refreshQuiet()
+    } catch (deleteError) {
+      showToast(deleteError.message || 'Không thể xóa lệnh sản xuất.', 'error')
+    } finally {
+      setDeletingOrderBusy(false)
+    }
   }
 
   async function openOrder(order) {
@@ -479,6 +517,7 @@ export default function Production() {
           pageSize={orderPages.pageSize}
           onChangePage={orderPages.setPage}
           onOpen={openOrder}
+          onDelete={setDeletingOrder}
           canManage={canManage}
           onCreate={() => setOrderFormOpen(true)}
         />
@@ -492,6 +531,7 @@ export default function Production() {
           onChangePage={bomPages.setPage}
           onEdit={openBomForm}
           onToggleStatus={changeBomStatus}
+          onDelete={setDeletingBom}
           canManage={canManage}
           onCreate={() => openBomForm()}
         />
@@ -534,6 +574,26 @@ export default function Production() {
         onWaste={performWaste}
         onAddCost={performCost}
       />
+      <ConfirmDialog
+        open={Boolean(deletingBom)}
+        onClose={() => setDeletingBom(null)}
+        onConfirm={confirmDeleteBom}
+        loading={deleting}
+        title="Xóa vĩnh viễn định mức?"
+        description={deletingBom ? `“${deletingBom.code} - ${deletingBom.name}” sẽ bị xóa.` : ''}
+        confirmLabel="Xóa định mức"
+        message="Chỉ định mức chưa được dùng trong lệnh sản xuất mới có thể xóa. Định mức đã phát sinh lệnh cần được lưu trữ."
+      />
+      <ConfirmDialog
+        open={Boolean(deletingOrder)}
+        onClose={() => setDeletingOrder(null)}
+        onConfirm={confirmDeleteOrder}
+        loading={deletingOrderBusy}
+        title="Xóa vĩnh viễn lệnh sản xuất?"
+        description={deletingOrder ? `“${deletingOrder.code}” sẽ bị xóa khỏi danh sách.` : ''}
+        confirmLabel="Xóa lệnh"
+        message="Chỉ lệnh đang chờ hoặc đã hủy và chưa phát sinh kho, sản lượng mới có thể xóa."
+      />
     </div>
   )
 }
@@ -563,6 +623,7 @@ function OrderList({
   pageSize,
   onChangePage,
   onOpen,
+  onDelete,
   canManage,
   onCreate,
 }) {
@@ -599,14 +660,14 @@ function OrderList({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pageItems.map((order) => (
-                  <OrderRow key={order.id} order={order} onOpen={() => onOpen(order)} />
+                  <OrderRow key={order.id} order={order} canManage={canManage} onOpen={() => onOpen(order)} onDelete={() => onDelete(order)} />
                 ))}
               </tbody>
             </table>
           </div>
           <div className="divide-y divide-slate-100 lg:hidden">
             {pageItems.map((order) => (
-              <OrderCard key={order.id} order={order} onOpen={() => onOpen(order)} />
+              <OrderCard key={order.id} order={order} canManage={canManage} onOpen={() => onOpen(order)} onDelete={() => onDelete(order)} />
             ))}
           </div>
           <Pagination
@@ -622,7 +683,7 @@ function OrderList({
   )
 }
 
-function OrderRow({ order, onOpen }) {
+function OrderRow({ order, canManage, onOpen, onDelete }) {
   return (
     <tr className="transition-colors hover:bg-slate-50/80">
       <td className="px-5 py-4">
@@ -658,15 +719,18 @@ function OrderRow({ order, onOpen }) {
         <StatusBadge status={order.status} size="sm" />
       </td>
       <td className="px-5 py-4 text-right">
-        <button className="btn-ghost" type="button" onClick={onOpen}>
-          Xem lệnh
-        </button>
+        <div className="flex justify-end gap-1">
+          <button className="btn-ghost" type="button" onClick={onOpen}>Xem lệnh</button>
+          {canManage && ['planned', 'in_progress', 'cancelled'].includes(order.status) && (
+            <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa lệnh ${order.code}`} title="Xóa"><Trash2 size={17} /></button>
+          )}
+        </div>
       </td>
     </tr>
   )
 }
 
-function OrderCard({ order, onOpen }) {
+function OrderCard({ order, canManage, onOpen, onDelete }) {
   return (
     <article className="p-4">
       <div className="flex items-start gap-3">
@@ -689,13 +753,12 @@ function OrderCard({ order, onOpen }) {
             <MiniValue label="Đã nhập" value={formatNumber(order.actual_quantity)} />
             <MiniValue label="Giá thành" value={formatCurrency(order.actual_total_cost)} />
           </div>
-          <button
-            className="btn-secondary mt-3 w-full justify-center"
-            type="button"
-            onClick={onOpen}
-          >
-            Xem chi tiết lệnh
-          </button>
+          <div className="mt-3 flex gap-2">
+            <button className="btn-secondary flex-1 justify-center" type="button" onClick={onOpen}>Xem chi tiết lệnh</button>
+            {canManage && ['planned', 'in_progress', 'cancelled'].includes(order.status) && (
+              <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa lệnh ${order.code}`} title="Xóa"><Trash2 size={17} /></button>
+            )}
+          </div>
         </div>
       </div>
     </article>
@@ -711,6 +774,7 @@ function BomList({
   onChangePage,
   onEdit,
   onToggleStatus,
+  onDelete,
   canManage,
   onCreate,
 }) {
@@ -753,6 +817,7 @@ function BomList({
                     canManage={canManage}
                     onEdit={() => onEdit(bom)}
                     onToggleStatus={() => onToggleStatus(bom)}
+                    onDelete={() => onDelete(bom)}
                   />
                 ))}
               </tbody>
@@ -766,6 +831,7 @@ function BomList({
                 canManage={canManage}
                 onEdit={() => onEdit(bom)}
                 onToggleStatus={() => onToggleStatus(bom)}
+                onDelete={() => onDelete(bom)}
               />
             ))}
           </div>
@@ -782,7 +848,7 @@ function BomList({
   )
 }
 
-function BomRow({ bom, canManage, onEdit, onToggleStatus }) {
+function BomRow({ bom, canManage, onEdit, onToggleStatus, onDelete }) {
   return (
     <tr className="transition hover:bg-slate-50/70">
       <td className="px-5 py-4">
@@ -830,6 +896,15 @@ function BomRow({ bom, canManage, onEdit, onToggleStatus }) {
             >
               {bom.status === 'active' ? <Archive size={17} /> : <Check size={17} />}
             </button>
+            <button
+              className="btn-icon text-rose-600 hover:bg-rose-50"
+              type="button"
+              onClick={onDelete}
+              aria-label={`Xóa định mức ${bom.code}`}
+              title="Xóa"
+            >
+              <Trash2 size={17} />
+            </button>
           </div>
         )}
       </td>
@@ -837,7 +912,7 @@ function BomRow({ bom, canManage, onEdit, onToggleStatus }) {
   )
 }
 
-function BomCard({ bom, canManage, onEdit, onToggleStatus }) {
+function BomCard({ bom, canManage, onEdit, onToggleStatus, onDelete }) {
   return (
     <article className="p-4">
       <div className="flex items-start gap-3">
@@ -878,6 +953,15 @@ function BomCard({ bom, canManage, onEdit, onToggleStatus }) {
                 aria-label={bom.status === 'active' ? 'Lưu trữ định mức' : 'Kích hoạt định mức'}
               >
                 {bom.status === 'active' ? <Archive size={17} /> : <Check size={17} />}
+              </button>
+              <button
+                className="btn-icon text-rose-600 hover:bg-rose-50"
+                type="button"
+                onClick={onDelete}
+                aria-label={`Xóa định mức ${bom.code}`}
+                title="Xóa"
+              >
+                <Trash2 size={17} />
               </button>
             </div>
           )}

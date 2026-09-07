@@ -1,8 +1,9 @@
 /* oxlint-disable react/set-state-in-effect */
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react'
-import { inviteBusinessMember, listBusinessMembers, updateBusinessMember } from '../../services/memberService'
+import { RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
+import { deleteBusinessMember, inviteBusinessMember, listBusinessMembers, updateBusinessMember } from '../../services/memberService'
 import Loading from '../common/Loading'
+import ConfirmDialog from '../common/ConfirmDialog'
 
 const roles = [
   ['admin', 'Quản trị viên'],
@@ -24,6 +25,7 @@ export default function TeamManagement({ businessId, currentUserId, showToast })
   const [saving, setSaving] = useState(false)
   const [changingId, setChangingId] = useState('')
   const [error, setError] = useState('')
+  const [deletingMember, setDeletingMember] = useState(null)
 
   const loadMembers = useCallback(async () => {
     if (!businessId) return
@@ -71,7 +73,25 @@ export default function TeamManagement({ businessId, currentUserId, showToast })
     }
   }
 
+  async function confirmDeleteMember() {
+    if (!deletingMember || changingId) return
+    setChangingId(deletingMember.user_id)
+    setError('')
+    try {
+      await deleteBusinessMember(businessId, deletingMember.user_id)
+      setDeletingMember(null)
+      showToast('Đã xóa thành viên khỏi doanh nghiệp.')
+      await loadMembers()
+    } catch (deleteError) {
+      setDeletingMember(null)
+      setError(deleteError.message || 'Không thể xóa thành viên.')
+    } finally {
+      setChangingId('')
+    }
+  }
+
   return (
+    <>
     <section className="surface overflow-hidden">
       <div className="border-b border-slate-100 p-5 sm:p-6">
         <div className="form-section-title"><Users className="text-indigo-600" size={18} /> Thành viên và phân quyền</div>
@@ -99,6 +119,7 @@ export default function TeamManagement({ businessId, currentUserId, showToast })
                     {roles.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                   {!immutable && <button className="btn-secondary text-rose-600" type="button" onClick={() => changeMember(member, { active: false })} disabled={changing}>Ngừng truy cập</button>}
+                  {!immutable && <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={() => setDeletingMember(member)} disabled={changing} aria-label={`Xóa ${member.email || 'thành viên'}`} title="Xóa"><Trash2 size={17} /></button>}
                 </div>
               </div>
             )
@@ -107,5 +128,16 @@ export default function TeamManagement({ businessId, currentUserId, showToast })
       )}
       <button className="mx-auto mb-4 flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-sky-700" type="button" onClick={loadMembers} disabled={loading}><RefreshCw className={loading ? 'animate-spin' : ''} size={14} /> Làm mới danh sách</button>
     </section>
+    <ConfirmDialog
+      open={Boolean(deletingMember)}
+      onClose={() => setDeletingMember(null)}
+      onConfirm={confirmDeleteMember}
+      loading={Boolean(changingId)}
+      title="Xóa thành viên khỏi doanh nghiệp?"
+      description={deletingMember?.email || ''}
+      confirmLabel="Xóa thành viên"
+      message="Thành viên sẽ mất quyền truy cập vào doanh nghiệp này. Tài khoản đăng nhập của họ không bị xóa."
+    />
+    </>
   )
 }

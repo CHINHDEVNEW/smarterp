@@ -639,6 +639,12 @@ declare
   v_vat numeric;
   v_total numeric;
   v_requested numeric;
+  v_order_id uuid;
+  v_order_total numeric;
+  v_paid numeric;
+  v_returned numeric;
+  v_prior_settled numeric;
+  v_cash_available numeric;
   v_refund_now boolean := coalesce((p_return->>'refund_now')::boolean, false);
   v_account_id uuid := nullif(p_return->>'account_id', '')::uuid;
   v_transaction public.finance_transactions%rowtype;
@@ -693,10 +699,50 @@ begin
   from public.sales_return_items sri
   where sri.sales_return_id = v_return_id and sri.business_id = p_business_id;
 
+  select sr.sales_order_id, so.total
+  into v_order_id, v_order_total
+  from public.sales_returns sr
+  join public.sales_orders so on so.id = sr.sales_order_id and so.business_id = sr.business_id
+  where sr.id = v_return_id and sr.business_id = p_business_id
+  for update of so;
+
+  select coalesce(sum(pa.amount), 0)
+  into v_paid
+  from public.payment_allocations pa
+  join public.finance_transactions ft
+    on ft.id = pa.transaction_id and ft.business_id = pa.business_id
+  where pa.business_id = p_business_id
+    and pa.document_type = 'sales_order'
+    and pa.document_id = v_order_id
+    and ft.status = 'posted'
+    and ft.reference_type = 'sales_order';
+
+  select coalesce(sum(coalesce(sr.net_total, sr.total, 0)), 0)
+  into v_returned
+  from public.sales_returns sr
+  where sr.business_id = p_business_id
+    and sr.sales_order_id = v_order_id
+    and lower(coalesce(sr.status, 'completed')) not in ('cancelled', 'canceled', 'draft');
+
+  select coalesce(sum(ft.amount), 0)
+  into v_prior_settled
+  from public.finance_transactions ft
+  join public.sales_returns sr
+    on sr.id = ft.reference_id and sr.business_id = ft.business_id
+  where ft.business_id = p_business_id
+    and ft.reference_type = 'sales_return'
+    and ft.status = 'posted'
+    and sr.sales_order_id = v_order_id;
+
+  v_cash_available := greatest(0, v_paid - greatest(0, v_order_total - v_returned) - v_prior_settled);
+
   v_code := public.take_document_code(p_business_id, 'sales_return', 'THB-');
   v_requested := coalesce(nullif(p_return->>'refund_amount', '')::numeric, v_total);
   if v_requested < 0 or v_requested > v_total then
     raise exception 'Số tiền hoàn không hợp lệ.';
+  end if;
+  if v_refund_now and v_requested > v_cash_available then
+    raise exception 'Số tiền hoàn vượt quá phần khách đã thanh toán sau khi trừ công nợ còn lại.';
   end if;
   if v_refund_now and v_requested > 0 and v_account_id is null then
     raise exception 'Cần chọn tài khoản chi hoàn tiền.';
@@ -757,6 +803,12 @@ declare
   v_vat numeric;
   v_total numeric;
   v_requested numeric;
+  v_order_id uuid;
+  v_order_total numeric;
+  v_paid numeric;
+  v_returned numeric;
+  v_prior_settled numeric;
+  v_cash_available numeric;
   v_refund_now boolean := coalesce((p_return->>'refund_now')::boolean, false);
   v_account_id uuid := nullif(p_return->>'account_id', '')::uuid;
   v_transaction public.finance_transactions%rowtype;
@@ -811,10 +863,50 @@ begin
   from public.purchase_return_items pri
   where pri.purchase_return_id = v_return_id and pri.business_id = p_business_id;
 
+  select pr.purchase_order_id, po.total
+  into v_order_id, v_order_total
+  from public.purchase_returns pr
+  join public.purchase_orders po on po.id = pr.purchase_order_id and po.business_id = pr.business_id
+  where pr.id = v_return_id and pr.business_id = p_business_id
+  for update of po;
+
+  select coalesce(sum(pa.amount), 0)
+  into v_paid
+  from public.payment_allocations pa
+  join public.finance_transactions ft
+    on ft.id = pa.transaction_id and ft.business_id = pa.business_id
+  where pa.business_id = p_business_id
+    and pa.document_type = 'purchase_order'
+    and pa.document_id = v_order_id
+    and ft.status = 'posted'
+    and ft.reference_type = 'purchase_order';
+
+  select coalesce(sum(coalesce(pr.net_total, pr.total, 0)), 0)
+  into v_returned
+  from public.purchase_returns pr
+  where pr.business_id = p_business_id
+    and pr.purchase_order_id = v_order_id
+    and lower(coalesce(pr.status, 'completed')) not in ('cancelled', 'canceled', 'draft');
+
+  select coalesce(sum(ft.amount), 0)
+  into v_prior_settled
+  from public.finance_transactions ft
+  join public.purchase_returns pr
+    on pr.id = ft.reference_id and pr.business_id = ft.business_id
+  where ft.business_id = p_business_id
+    and ft.reference_type = 'purchase_return'
+    and ft.status = 'posted'
+    and pr.purchase_order_id = v_order_id;
+
+  v_cash_available := greatest(0, v_paid - greatest(0, v_order_total - v_returned) - v_prior_settled);
+
   v_code := public.take_document_code(p_business_id, 'purchase_return', 'THN-');
   v_requested := coalesce(nullif(p_return->>'refund_amount', '')::numeric, v_total);
   if v_requested < 0 or v_requested > v_total then
     raise exception 'Số tiền nhận lại không hợp lệ.';
+  end if;
+  if v_refund_now and v_requested > v_cash_available then
+    raise exception 'Số tiền nhận lại vượt quá phần đã thanh toán cho nhà cung cấp sau khi trừ công nợ còn lại.';
   end if;
   if v_refund_now and v_requested > 0 and v_account_id is null then
     raise exception 'Cần chọn tài khoản nhận tiền từ nhà cung cấp.';
@@ -877,17 +969,27 @@ declare
   v_reference_type text;
   v_category text;
   v_status text;
+  v_order_id uuid;
+  v_order_total numeric;
+  v_paid numeric;
+  v_returned numeric;
+  v_all_settled numeric;
+  v_cash_available numeric;
   v_transaction public.finance_transactions%rowtype;
 begin
   if lower(p_return_type) = 'sales' then
     perform public.assert_business_permission(p_business_id, 'sales_return');
-    select coalesce(net_total, total, 0), status into v_total, v_status
+    select coalesce(net_total, total, 0), status, sales_order_id into v_total, v_status, v_order_id
     from public.sales_returns where id = p_return_id and business_id = p_business_id for update;
+    select total into v_order_total from public.sales_orders
+    where id = v_order_id and business_id = p_business_id for update;
     v_direction := 'out'; v_reference_type := 'sales_return'; v_category := 'Hoàn tiền trả hàng';
   elsif lower(p_return_type) = 'purchase' then
     perform public.assert_business_permission(p_business_id, 'purchase_return');
-    select coalesce(net_total, total, 0), status into v_total, v_status
+    select coalesce(net_total, total, 0), status, purchase_order_id into v_total, v_status, v_order_id
     from public.purchase_returns where id = p_return_id and business_id = p_business_id for update;
+    select total into v_order_total from public.purchase_orders
+    where id = v_order_id and business_id = p_business_id for update;
     v_direction := 'in'; v_reference_type := 'purchase_return'; v_category := 'Nhận tiền trả hàng';
   else
     raise exception 'Loại phiếu trả hàng không hợp lệ.';
@@ -902,7 +1004,42 @@ begin
   where business_id = p_business_id and reference_type = v_reference_type
     and reference_id = p_return_id and status = 'posted';
 
-  if p_amount is null or p_amount <= 0 or p_amount > greatest(0, v_total - v_settled) then
+  if lower(p_return_type) = 'sales' then
+    select coalesce(sum(pa.amount), 0) into v_paid
+    from public.payment_allocations pa
+    join public.finance_transactions ft on ft.id = pa.transaction_id and ft.business_id = pa.business_id
+    where pa.business_id = p_business_id and pa.document_type = 'sales_order'
+      and pa.document_id = v_order_id and ft.status = 'posted' and ft.reference_type = 'sales_order';
+    select coalesce(sum(coalesce(net_total, total, 0)), 0) into v_returned
+    from public.sales_returns
+    where business_id = p_business_id and sales_order_id = v_order_id
+      and lower(coalesce(status, 'completed')) not in ('cancelled', 'canceled', 'draft');
+    select coalesce(sum(ft.amount), 0) into v_all_settled
+    from public.finance_transactions ft
+    join public.sales_returns sr on sr.id = ft.reference_id and sr.business_id = ft.business_id
+    where ft.business_id = p_business_id and ft.reference_type = 'sales_return'
+      and ft.status = 'posted' and sr.sales_order_id = v_order_id;
+  else
+    select coalesce(sum(pa.amount), 0) into v_paid
+    from public.payment_allocations pa
+    join public.finance_transactions ft on ft.id = pa.transaction_id and ft.business_id = pa.business_id
+    where pa.business_id = p_business_id and pa.document_type = 'purchase_order'
+      and pa.document_id = v_order_id and ft.status = 'posted' and ft.reference_type = 'purchase_order';
+    select coalesce(sum(coalesce(net_total, total, 0)), 0) into v_returned
+    from public.purchase_returns
+    where business_id = p_business_id and purchase_order_id = v_order_id
+      and lower(coalesce(status, 'completed')) not in ('cancelled', 'canceled', 'draft');
+    select coalesce(sum(ft.amount), 0) into v_all_settled
+    from public.finance_transactions ft
+    join public.purchase_returns pr on pr.id = ft.reference_id and pr.business_id = ft.business_id
+    where ft.business_id = p_business_id and ft.reference_type = 'purchase_return'
+      and ft.status = 'posted' and pr.purchase_order_id = v_order_id;
+  end if;
+  v_cash_available := greatest(0, v_paid - greatest(0, v_order_total - v_returned) - v_all_settled);
+
+  if p_amount is null or p_amount <= 0
+    or p_amount > greatest(0, v_total - v_settled)
+    or p_amount > v_cash_available then
     raise exception 'Số tiền đối soát không hợp lệ hoặc vượt quá số còn lại.';
   end if;
   if not exists (
@@ -1103,6 +1240,16 @@ begin
   select coalesce((
     select allow_negative_stock from public.app_settings where business_id = p_business_id
   ), false) into v_allow_negative;
+  perform 1
+  from public.products p
+  where p.business_id = p_business_id
+    and p.id in (
+      select poi.product_id
+      from public.purchase_order_items poi
+      where poi.business_id = p_business_id and poi.purchase_order_id = p_purchase_order_id
+    )
+  order by p.id
+  for update;
   if not v_allow_negative and exists (
     select 1
     from public.purchase_order_items poi

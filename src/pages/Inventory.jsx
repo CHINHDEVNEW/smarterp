@@ -21,6 +21,7 @@ import useToast from '../hooks/useToast'
 import {
   createStockAdjustment,
   createStocktake,
+  cancelStocktake,
   listInventoryData,
   listStocktakes,
   subscribeToInventory,
@@ -46,6 +47,10 @@ const movementLabels = {
 }
 
 const referenceMovementLabels = {
+  sales_return: 'Hàng khách trả',
+  purchase_return: 'Trả nhà cung cấp',
+  sales_return_cancel: 'Hủy hàng khách trả',
+  purchase_return_cancel: 'Hủy trả nhà cung cấp',
   production_issue: 'Xuất sản xuất',
   production_return: 'Trả nguyên liệu sản xuất',
   production_receipt: 'Nhập thành phẩm',
@@ -173,6 +178,14 @@ export default function Inventory() {
     const created = await createStocktake(businessId, values)
     showToast('Đã hoàn tất ' + (created?.code || 'phiếu kiểm kê') + '.')
     setStocktakeOpen(false)
+    await loadInventory({ quiet: true })
+  }
+
+  async function cancelSelectedStocktake(reason) {
+    if (!stocktakeViewing) return
+    await cancelStocktake(businessId, stocktakeViewing.id, reason)
+    setStocktakeViewing(null)
+    showToast('Đã hủy phiếu kiểm kê và đảo chênh lệch tồn kho.')
     await loadInventory({ quiet: true })
   }
 
@@ -442,6 +455,7 @@ export default function Inventory() {
         stocktake={stocktakeViewing}
         businessId={businessId}
         onClose={() => setStocktakeViewing(null)}
+        onCancel={cancelSelectedStocktake}
       />
     </div>
   )
@@ -635,7 +649,7 @@ function StocktakeHistory({ stocktakes, onView }) {
 }
 
 function StocktakeRow({ stocktake, onView }) {
-  const rawStatus = stocktake.status || stocktake.stocktake_status || 'completed'
+  const rawStatus = stocktake.cancelled_at ? 'cancelled' : stocktake.status || stocktake.stocktake_status || 'completed'
   const difference =
     Number(
       stocktakeValue(
@@ -701,7 +715,7 @@ function StocktakeRow({ stocktake, onView }) {
 }
 
 function StocktakeCard({ stocktake, onView }) {
-  const rawStatus = stocktake.status || stocktake.stocktake_status || 'completed'
+  const rawStatus = stocktake.cancelled_at ? 'cancelled' : stocktake.status || stocktake.stocktake_status || 'completed'
   const difference =
     Number(
       stocktakeValue(

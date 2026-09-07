@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Send,
   ShoppingBag,
+  Trash2,
   UserRound,
   XCircle,
 } from 'lucide-react'
@@ -21,6 +22,7 @@ import useToast from '../hooks/useToast'
 import {
   convertQuoteToSales,
   createQuote,
+  deleteQuote,
   getQuoteItems,
   listQuotes,
   subscribeToQuotes,
@@ -38,6 +40,7 @@ import Modal from '../components/common/Modal'
 import { printDocument } from '../lib/printDocument'
 import Pagination from '../components/common/Pagination'
 import usePagination from '../hooks/usePagination'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 
 const statusLabels = {
   draft: 'Bản nháp',
@@ -69,6 +72,8 @@ export default function Quotes() {
   const [status, setStatus] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
   const [viewing, setViewing] = useState(null)
+  const [deletingQuote, setDeletingQuote] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   const loadQuotes = useCallback(
     async ({ quiet = false } = {}) => {
@@ -124,6 +129,22 @@ export default function Quotes() {
     showToast(`Đã tạo báo giá ${created?.code || ''}.`.trim())
     setFormOpen(false)
     await loadQuotes({ quiet: true })
+  }
+
+  async function confirmDelete() {
+    if (!deletingQuote || deleting) return
+    setDeleting(true)
+    try {
+      await deleteQuote(businessId, deletingQuote.id)
+      setViewing((current) => (current?.id === deletingQuote.id ? null : current))
+      setDeletingQuote(null)
+      showToast('Đã xóa báo giá.')
+      await loadQuotes({ quiet: true })
+    } catch (deleteError) {
+      showToast(deleteError.message || 'Không thể xóa báo giá.', 'error')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -270,6 +291,7 @@ export default function Quotes() {
                       key={quote.id}
                       quote={quote}
                       onView={() => setViewing(quote)}
+                      onDelete={() => setDeletingQuote(quote)}
                     />
                   ))}
                 </tbody>
@@ -281,6 +303,7 @@ export default function Quotes() {
                   key={quote.id}
                   quote={quote}
                   onView={() => setViewing(quote)}
+                  onDelete={() => setDeletingQuote(quote)}
                 />
               ))}
             </div>
@@ -307,17 +330,28 @@ export default function Quotes() {
         quote={viewing}
         businessId={businessId}
         onClose={() => setViewing(null)}
+        onDelete={() => setDeletingQuote(viewing)}
         onChanged={async (message) => {
           setViewing(null)
           showToast(message)
           await loadQuotes({ quiet: true })
         }}
       />
+      <ConfirmDialog
+        open={Boolean(deletingQuote)}
+        onClose={() => setDeletingQuote(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="Xóa vĩnh viễn báo giá?"
+        description={deletingQuote ? `“${deletingQuote.code}” sẽ bị xóa khỏi danh sách.` : ''}
+        confirmLabel="Xóa báo giá"
+        message="Chỉ báo giá chưa chuyển thành đơn bán mới có thể xóa. Thao tác này không thể hoàn tác."
+      />
     </div>
   )
 }
 
-function QuoteRow({ quote, onView }) {
+function QuoteRow({ quote, onView, onDelete }) {
   return (
     <tr className="transition-colors hover:bg-slate-50/80">
       <td className="px-5 py-4">
@@ -343,26 +377,34 @@ function QuoteRow({ quote, onView }) {
         {formatCurrency(quote.total)}
       </td>
       <td className="px-5 py-4 text-right">
-        <button
-          className="btn-icon ml-auto"
-          type="button"
-          onClick={onView}
-          aria-label={`Xem báo giá ${quote.code}`}
-        >
-          <Eye size={17} />
-        </button>
+        <div className="flex justify-end gap-1">
+          <button
+            className="btn-icon"
+            type="button"
+            onClick={onView}
+            aria-label={`Xem báo giá ${quote.code}`}
+          >
+            <Eye size={17} />
+          </button>
+          {!quote.converted_sales_order_id && (
+            <button
+              className="btn-icon text-rose-600 hover:bg-rose-50"
+              type="button"
+              onClick={onDelete}
+              aria-label={`Xóa báo giá ${quote.code}`}
+            >
+              <Trash2 size={17} />
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   )
 }
 
-function QuoteCard({ quote, onView }) {
+function QuoteCard({ quote, onView, onDelete }) {
   return (
-    <button
-      className="block w-full p-4 text-left transition hover:bg-slate-50/80"
-      type="button"
-      onClick={onView}
-    >
+    <article className="p-4 transition hover:bg-slate-50/80">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-sky-700">{quote.code}</p>
@@ -391,11 +433,27 @@ function QuoteCard({ quote, onView }) {
           </p>
         </div>
       </div>
-    </button>
+      <div className="mt-3 flex gap-2">
+        <button className="btn-secondary flex-1 justify-center" type="button" onClick={onView}>
+          <Eye size={16} />
+          <span>Xem chi tiết</span>
+        </button>
+        {!quote.converted_sales_order_id && (
+          <button
+            className="btn-icon text-rose-600 hover:bg-rose-50"
+            type="button"
+            onClick={onDelete}
+            aria-label={`Xóa báo giá ${quote.code}`}
+          >
+            <Trash2 size={17} />
+          </button>
+        )}
+      </div>
+    </article>
   )
 }
 
-function QuoteDetail({ open, quote, businessId, onClose, onChanged }) {
+function QuoteDetail({ open, quote, businessId, onClose, onChanged, onDelete }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -486,6 +544,17 @@ function QuoteDetail({ open, quote, businessId, onClose, onChanged }) {
         >
           <Printer size={17} />
           <span>In</span>
+        </button>
+      )}
+      {quote && !quote.converted_sales_order_id && (
+        <button
+          className="btn-danger flex-1 sm:flex-initial"
+          type="button"
+          onClick={onDelete}
+          disabled={saving}
+        >
+          <Trash2 size={17} />
+          <span>Xóa</span>
         </button>
       )}
       {quote?.status === 'draft' && (

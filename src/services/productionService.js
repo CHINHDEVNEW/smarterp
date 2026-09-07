@@ -74,6 +74,14 @@ export function setProductionBomStatus(businessId, bomId, status) {
   return callRpc('app_set_production_bom_status', { p_business_id: businessId, p_bom_id: bomId, p_status: status }, 'Không thể cập nhật trạng thái định mức.')
 }
 
+export function deleteProductionBom(businessId, bomId) {
+  return callRpc('app_delete_production_bom', { p_business_id: businessId, p_bom_id: bomId }, 'Không thể xóa định mức.')
+}
+
+export function deleteProductionOrder(businessId, orderId) {
+  return callRpc('app_delete_production_order', { p_business_id: businessId, p_order_id: orderId }, 'Không thể xóa lệnh sản xuất.')
+}
+
 export function createProductionOrder(businessId, order, materials = []) {
   return callRpc('app_create_production_order', { p_business_id: businessId, p_order: order, p_materials: materials }, 'Không thể tạo lệnh sản xuất.')
 }

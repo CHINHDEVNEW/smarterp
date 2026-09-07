@@ -11,6 +11,7 @@ import ResetPassword from './pages/ResetPassword'
 import useBusiness from './hooks/useBusiness'
 import { canAccess } from './lib/permissions'
 import ErrorBoundary from './components/common/ErrorBoundary'
+import VietnameseFormValidation from './components/common/VietnameseFormValidation'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Products = lazy(() => import('./pages/Products'))
 const Customers = lazy(() => import('./pages/Customers'))
@@ -75,6 +76,7 @@ function ProtectedApp() {
 export default function App() {
   return (
     <ErrorBoundary>
+      <VietnameseFormValidation />
       <BrowserRouter>
         <AuthProvider>
           <ToastProvider>

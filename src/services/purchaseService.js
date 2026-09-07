@@ -53,6 +53,15 @@ export async function cancelPurchaseOrder(businessId, purchaseOrderId, reason) {
   return data
 }
 
+export async function deleteCancelledPurchaseOrder(businessId, purchaseOrderId) {
+  const { data, error } = await supabase.rpc('app_delete_cancelled_purchase_order', {
+    p_business_id: businessId,
+    p_purchase_order_id: purchaseOrderId,
+  })
+  throwIfError(error, 'Không thể xóa phiếu nhập.')
+  return data
+}
+
 export function subscribeToPurchaseOrders(businessId, onChange) {
   const channel = supabase.channel(`purchase-orders:${businessId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders', filter: `business_id=eq.${businessId}` }, onChange).subscribe()
   return () => supabase.removeChannel(channel)

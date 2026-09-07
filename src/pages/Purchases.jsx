@@ -1,9 +1,9 @@
 /* oxlint-disable react/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, Banknote, CircleDollarSign, Eye, Plus, Printer, RefreshCw, Truck } from 'lucide-react'
+import { Ban, Banknote, CircleDollarSign, Eye, Plus, Printer, RefreshCw, Trash2, Truck } from 'lucide-react'
 import useBusiness from '../hooks/useBusiness'
 import useToast from '../hooks/useToast'
-import { cancelPurchaseOrder, createPurchaseOrder, getPurchaseOrderItems, listPurchaseOrders, recordPurchasePayment, subscribeToPurchaseOrders } from '../services/purchaseService'
+import { cancelPurchaseOrder, createPurchaseOrder, deleteCancelledPurchaseOrder, getPurchaseOrderItems, listPurchaseOrders, recordPurchasePayment, subscribeToPurchaseOrders } from '../services/purchaseService'
 import { listFinanceAccounts } from '../services/financeService'
 import { formatCurrency, formatDateTime, formatNumber } from '../lib/formatters'
 import PurchaseOrderForm from '../components/purchases/PurchaseOrderForm'
@@ -11,6 +11,7 @@ import EmptyState from '../components/common/EmptyState'
 import Loading from '../components/common/Loading'
 import Modal from '../components/common/Modal'
 import CancelDocumentModal from '../components/common/CancelDocumentModal'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 import { printDocument } from '../lib/printDocument'
 import Pagination from '../components/common/Pagination'
 import usePagination from '../hooks/usePagination'
@@ -40,6 +41,8 @@ export default function Purchases() {
   const [status, setStatus] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
   const [viewing, setViewing] = useState(null)
+  const [deletingOrder, setDeletingOrder] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   const loadOrders = useCallback(async ({ quiet = false } = {}) => {
     if (!businessId) return
@@ -95,6 +98,21 @@ export default function Purchases() {
     showToast(`Đã tạo phiếu ${created?.code || 'nhập hàng'}.`)
     setFormOpen(false)
     await loadOrders({ quiet: true })
+  }
+
+  async function confirmDeleteOrder() {
+    if (!deletingOrder || deleting) return
+    setDeleting(true)
+    try {
+      await deleteCancelledPurchaseOrder(businessId, deletingOrder.id)
+      setDeletingOrder(null)
+      showToast('Đã xóa phiếu nhập.')
+      await loadOrders({ quiet: true })
+    } catch (deleteError) {
+      showToast(deleteError.message || 'Không thể xóa phiếu nhập.', 'error')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -189,7 +207,7 @@ export default function Purchases() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {purchasePages.pageItems.map((order) => (
-                    <PurchaseRow key={order.id} order={order} onView={() => setViewing(order)} />
+                    <PurchaseRow key={order.id} order={order} onView={() => setViewing(order)} onDelete={() => setDeletingOrder(order)} />
                   ))}
                 </tbody>
               </table>
@@ -197,7 +215,7 @@ export default function Purchases() {
 
             <div className="divide-y divide-slate-100 lg:hidden">
               {purchasePages.pageItems.map((order) => (
-                <PurchaseCard key={order.id} order={order} onView={() => setViewing(order)} />
+                <PurchaseCard key={order.id} order={order} onView={() => setViewing(order)} onDelete={() => setDeletingOrder(order)} />
               ))}
             </div>
 
@@ -225,11 +243,21 @@ export default function Purchases() {
           await loadOrders({ quiet: true })
         }}
       />
+      <ConfirmDialog
+        open={Boolean(deletingOrder)}
+        onClose={() => setDeletingOrder(null)}
+        onConfirm={confirmDeleteOrder}
+        loading={deleting}
+        title="Xóa vĩnh viễn phiếu nhập?"
+        description={deletingOrder ? `“${deletingOrder.code}” sẽ bị xóa khỏi danh sách.` : ''}
+        confirmLabel="Xóa phiếu nhập"
+        message="Hệ thống sẽ tự đảo tồn kho và dòng tiền trước khi xóa. Phiếu đã có trả hàng sẽ được giữ lại để bảo toàn lịch sử."
+      />
     </div>
   )
 }
 
-function PurchaseRow({ order, onView }) {
+function PurchaseRow({ order, onView, onDelete }) {
   const state = paymentState(order)
   return (
     <tr className="transition-colors hover:bg-slate-50/80">
@@ -249,28 +277,19 @@ function PurchaseRow({ order, onView }) {
         <StatusBadge label={state.label} tone={state.tone} size="sm" />
       </td>
       <td className="px-5 py-3.5 text-right">
-        <button
-          className="btn-icon ml-auto"
-          type="button"
-          onClick={onView}
-          aria-label={`Xem phiếu ${order.code}`}
-          title="Xem chi tiết"
-        >
-          <Eye size={16} />
-        </button>
+        <div className="flex justify-end gap-1">
+          <button className="btn-icon" type="button" onClick={onView} aria-label={`Xem phiếu ${order.code}`} title="Xem chi tiết"><Eye size={16} /></button>
+          <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa phiếu ${order.code}`} title="Xóa"><Trash2 size={16} /></button>
+        </div>
       </td>
     </tr>
   )
 }
 
-function PurchaseCard({ order, onView }) {
+function PurchaseCard({ order, onView, onDelete }) {
   const state = paymentState(order)
   return (
-    <button
-      className="block w-full p-4 text-left transition hover:bg-slate-50/70"
-      type="button"
-      onClick={onView}
-    >
+    <article className="p-4 transition hover:bg-slate-50/70">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-sky-700">{order.code}</p>
@@ -294,7 +313,11 @@ function PurchaseCard({ order, onView }) {
           </p>
         </div>
       </div>
-    </button>
+      <div className="mt-3 flex gap-2">
+        <button className="btn-secondary flex-1 justify-center" type="button" onClick={onView}><Eye size={16} /> Xem chi tiết</button>
+        <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa phiếu ${order.code}`} title="Xóa"><Trash2 size={16} /></button>
+      </div>
+    </article>
   )
 }
 

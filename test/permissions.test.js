@@ -31,9 +31,12 @@ test('chỉ vai trò quản lý danh mục được sửa sản phẩm', () => {
 test('phân quyền module sản xuất theo vai trò', () => {
   assert.equal(canAccess('manager', 'production'), true)
   assert.equal(canAccess('warehouse', 'production_manage'), true)
+  assert.equal(canAccess('warehouse', 'production_cost'), false)
   assert.equal(canAccess('accountant', 'production'), true)
   assert.equal(canAccess('accountant', 'production_manage'), false)
+  assert.equal(canAccess('accountant', 'production_cost'), true)
   assert.equal(canAccess('sales', 'production'), false)
+  assert.equal(canAccess('sales', 'production_cost'), false)
 })
 
 test('vai trò không xác định không nhận quyền nhạy cảm', () => {

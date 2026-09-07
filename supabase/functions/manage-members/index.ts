@@ -127,6 +127,32 @@ Deno.serve(async (request) => {
       return json({ ok: true })
     }
 
+    if (action === 'delete') {
+      const userId = String(body.userId || '')
+      if (!userId || userId === authData.user.id) {
+        return json({ error: 'Không thể xóa chính tài khoản đang đăng nhập.' }, 400)
+      }
+
+      const { data: target } = await admin
+        .from('business_members')
+        .select('role')
+        .eq('business_id', businessId)
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (!target) return json({ error: 'Không tìm thấy thành viên.' }, 404)
+      if (String(target.role).toLowerCase() === 'owner') {
+        return json({ error: 'Không thể xóa chủ sở hữu.' }, 400)
+      }
+
+      const { error } = await admin
+        .from('business_members')
+        .delete()
+        .eq('business_id', businessId)
+        .eq('user_id', userId)
+      if (error) throw error
+      return json({ ok: true })
+    }
+
     return json({ error: 'Thao tác không hợp lệ.' }, 400)
   } catch (error) {
     console.error(error)

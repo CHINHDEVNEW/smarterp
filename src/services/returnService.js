@@ -48,6 +48,17 @@ export async function settleReturn(businessId, values) {
   return data
 }
 
+export async function cancelReturn(businessId, type, returnId, reason) {
+  const { data, error } = await supabase.rpc('app_cancel_return', {
+    p_business_id: businessId,
+    p_return_type: type,
+    p_return_id: returnId,
+    p_reason: reason,
+  })
+  throwIfError(error, 'Không thể hủy phiếu trả hàng.')
+  return data
+}
+
 export async function listReturnItems(businessId, row) {
   if (!row?.rawId) return []
   const table = row.type === 'sales' ? 'sales_return_items' : 'purchase_return_items'

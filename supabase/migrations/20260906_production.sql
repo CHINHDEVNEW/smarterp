@@ -81,11 +81,14 @@ create table if not exists public.production_order_materials (
   planned_quantity numeric(15,6) not null check (planned_quantity > 0),
   issued_quantity numeric(15,6) not null default 0 check (issued_quantity >= 0),
   returned_quantity numeric(15,6) not null default 0 check (returned_quantity >= 0),
+  issued_value numeric(15,2) not null default 0 check (issued_value >= 0),
+  returned_value numeric(15,2) not null default 0 check (returned_value >= 0),
   unit_cost numeric(15,4) not null default 0 check (unit_cost >= 0),
   note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check (returned_quantity <= issued_quantity)
+  check (returned_quantity <= issued_quantity),
+  check (returned_value <= issued_value)
 );
 
 create table if not exists public.production_order_outputs (
@@ -134,6 +137,8 @@ create index if not exists production_orders_business_status_idx
   on public.production_orders (business_id, status, order_date desc, created_at desc);
 create index if not exists production_order_materials_order_idx
   on public.production_order_materials (business_id, production_order_id);
+create unique index if not exists production_order_materials_unique_product_key
+  on public.production_order_materials (production_order_id, product_id);
 create index if not exists production_order_outputs_order_idx
   on public.production_order_outputs (business_id, production_order_id, created_at desc);
 create index if not exists production_order_wastes_order_idx
@@ -177,7 +182,7 @@ with material_totals as (
     m.business_id,
     m.production_order_id,
     coalesce(sum(m.planned_quantity * m.unit_cost), 0)::numeric(15,2) as planned_material_cost,
-    coalesce(sum((m.issued_quantity - m.returned_quantity) * m.unit_cost), 0)::numeric(15,2) as actual_material_cost,
+    coalesce(sum(m.issued_value - m.returned_value), 0)::numeric(15,2) as actual_material_cost,
     count(*)::integer as material_count,
     coalesce(sum(m.planned_quantity), 0)::numeric(15,3) as planned_material_quantity,
     coalesce(sum(m.issued_quantity), 0)::numeric(15,3) as issued_material_quantity,
@@ -314,25 +319,25 @@ alter table public.production_order_costs enable row level security;
 
 drop policy if exists smarterp_production_boms_select on public.production_boms;
 create policy smarterp_production_boms_select on public.production_boms for select to authenticated
-using (public.business_role(business_id) is not null);
+using (public.has_business_permission(business_id, 'production'));
 drop policy if exists smarterp_production_bom_items_select on public.production_bom_items;
 create policy smarterp_production_bom_items_select on public.production_bom_items for select to authenticated
-using (public.business_role(business_id) is not null);
+using (public.has_business_permission(business_id, 'production'));
 drop policy if exists smarterp_production_orders_select on public.production_orders;
 create policy smarterp_production_orders_select on public.production_orders for select to authenticated
-using (public.business_role(business_id) is not null);
+using (public.has_business_permission(business_id, 'production'));
 drop policy if exists smarterp_production_order_materials_select on public.production_order_materials;
 create policy smarterp_production_order_materials_select on public.production_order_materials for select to authenticated
-using (public.business_role(business_id) is not null);
+using (public.has_business_permission(business_id, 'production'));
 drop policy if exists smarterp_production_order_outputs_select on public.production_order_outputs;
 create policy smarterp_production_order_outputs_select on public.production_order_outputs for select to authenticated
-using (public.business_role(business_id) is not null);
+using (public.has_business_permission(business_id, 'production'));
 drop policy if exists smarterp_production_order_wastes_select on public.production_order_wastes;
 create policy smarterp_production_order_wastes_select on public.production_order_wastes for select to authenticated
-using (public.business_role(business_id) is not null);
+using (public.has_business_permission(business_id, 'production'));
 drop policy if exists smarterp_production_order_costs_select on public.production_order_costs;
 create policy smarterp_production_order_costs_select on public.production_order_costs for select to authenticated
-using (public.business_role(business_id) is not null);
+using (public.has_business_permission(business_id, 'production'));
 
 grant select on public.production_boms, public.production_bom_items,
   public.production_orders, public.production_order_materials,
@@ -383,6 +388,48 @@ begin
   end;
 end;
 $$;
+
+-- Internal helper. It is intentionally not granted to clients; guarded RPCs
+-- call it after every cost-changing event and when an order is completed.
+create or replace function public.revalue_production_outputs(
+  p_business_id uuid,
+  p_order_id uuid,
+  p_override_unit_cost numeric default null
+)
+returns numeric
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_quantity numeric;
+  v_actual_total numeric;
+  v_unit_cost numeric;
+begin
+  select coalesce(sum(quantity), 0)
+  into v_quantity
+  from public.production_order_outputs
+  where business_id = p_business_id and production_order_id = p_order_id;
+
+  if v_quantity <= 0 then return 0; end if;
+
+  select
+    coalesce((select sum(issued_value - returned_value) from public.production_order_materials where business_id = p_business_id and production_order_id = p_order_id), 0)
+    + coalesce((select sum(actual_amount) from public.production_order_costs where business_id = p_business_id and production_order_id = p_order_id), 0)
+  into v_actual_total;
+  v_unit_cost := coalesce(p_override_unit_cost, v_actual_total / v_quantity, 0);
+
+  update public.production_order_outputs
+  set unit_cost = v_unit_cost
+  where business_id = p_business_id and production_order_id = p_order_id;
+  update public.stock_movements
+  set unit_cost = v_unit_cost
+  where business_id = p_business_id and reference_type = 'production_receipt' and reference_id = p_order_id;
+
+  return v_unit_cost;
+end;
+$$;
+revoke execute on function public.revalue_production_outputs(uuid, uuid, numeric) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Guarded transactional functions
@@ -597,6 +644,11 @@ begin
       v_planned_material_cost := v_planned_material_cost + v_planned_quantity * v_unit_cost;
     end loop;
   elsif p_materials is not null and jsonb_typeof(p_materials) = 'array' then
+    if (select count(*) from jsonb_array_elements(p_materials)) <> (
+      select count(distinct nullif(value->>'product_id', '')) from jsonb_array_elements(p_materials)
+    ) then
+      raise exception 'Mỗi nguyên vật liệu chỉ được xuất hiện một lần trong lệnh sản xuất.';
+    end if;
     for v_item in select value from jsonb_array_elements(p_materials)
     loop
       v_material_id := nullif(v_item->>'product_id', '')::uuid;
@@ -605,6 +657,9 @@ begin
       select * into v_material from public.products where id = v_material_id and business_id = p_business_id and active = true for update;
       if not found or lower(coalesce(v_material.product_type::text, '')) = 'service' then
         raise exception 'Có nguyên vật liệu không tồn tại hoặc là dịch vụ.';
+      end if;
+      if v_material.id = v_output_product_id then
+        raise exception 'Sản phẩm đầu ra không thể đồng thời là nguyên vật liệu.';
       end if;
       insert into public.production_order_materials (
         business_id, production_order_id, product_id, product_code, product_name,
@@ -621,6 +676,9 @@ begin
   where id = v_order.id;
 
   if p_order ? 'costs' and jsonb_typeof(p_order->'costs') = 'array' then
+    if jsonb_array_length(p_order->'costs') > 0 then
+      perform public.assert_business_permission(p_business_id, 'production_cost');
+    end if;
     for v_cost in select value from jsonb_array_elements(p_order->'costs')
     loop
       v_cost_type := lower(trim(coalesce(v_cost->>'cost_type', '')));
@@ -677,12 +735,13 @@ begin
       raise exception 'Lệnh đã phát sinh xuất nguyên liệu hoặc nhập thành phẩm, không thể hủy.';
     end if;
   end if;
-  if p_status = 'planned' and v_order.status <> 'in_progress' then raise exception 'Không thể chuyển lệnh về trạng thái chờ.'; end if;
+  if p_status = 'planned' then raise exception 'Lệnh đã bắt đầu không thể chuyển về trạng thái chờ.'; end if;
 
   update public.production_orders
   set status = p_status, note = coalesce(nullif(trim(p_note), ''), note), updated_at = now()
   where id = p_order_id and business_id = p_business_id
   returning * into v_order;
+  perform public.revalue_production_outputs(p_business_id, p_order_id);
   return to_jsonb(v_order);
 end;
 $$;
@@ -704,6 +763,8 @@ declare
   v_material_id uuid;
   v_quantity numeric;
   v_stock numeric;
+  v_unit_cost numeric;
+  v_issue_value numeric;
 begin
   perform public.assert_business_permission(p_business_id, 'production_manage');
   if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then raise exception 'Chưa có nguyên liệu cần xuất.'; end if;
@@ -716,7 +777,7 @@ begin
     v_material_id := nullif(v_item->>'material_id', '')::uuid;
     v_quantity := coalesce(nullif(v_item->>'quantity', '')::numeric, 0);
     if v_material_id is null or v_quantity <= 0 then raise exception 'Số lượng xuất nguyên liệu không hợp lệ.'; end if;
-    select m.*, p.stock_on_hand, p.product_type into v_material
+    select m.*, p.stock_on_hand, p.product_type, p.cost_price as current_unit_cost into v_material
     from public.production_order_materials m
     join public.products p on p.id = m.product_id and p.business_id = p_business_id
     where m.id = v_material_id and m.business_id = p_business_id and m.production_order_id = p_order_id
@@ -725,23 +786,28 @@ begin
     v_stock := coalesce(v_material.stock_on_hand, 0);
     if lower(coalesce(v_material.product_type::text, '')) = 'service' then raise exception 'Dịch vụ không thể xuất làm nguyên liệu.'; end if;
     if v_stock < v_quantity then raise exception 'Tồn kho % không đủ để xuất %.', v_material.product_name, v_quantity; end if;
+    v_unit_cost := coalesce(v_material.current_unit_cost, v_material.unit_cost, 0);
+    v_issue_value := round(v_quantity * v_unit_cost, 2);
     insert into public.stock_movements (
       business_id, product_id, movement_type, quantity, unit_cost, reference_type, reference_id, note, created_by
     ) values (
-      p_business_id, v_material.product_id, 'adjustment', -v_quantity, v_material.unit_cost,
+      p_business_id, v_material.product_id, 'adjustment', -v_quantity, v_unit_cost,
       'production_issue', p_order_id, 'Xuất nguyên liệu cho lệnh ' || v_order.code, auth.uid()
     );
     update public.production_order_materials
-    set issued_quantity = issued_quantity + v_quantity, updated_at = now()
+    set issued_quantity = issued_quantity + v_quantity,
+        issued_value = issued_value + v_issue_value,
+        updated_at = now()
     where id = v_material.id and business_id = p_business_id;
   end loop;
 
   update public.production_orders
   set status = case when status = 'planned' then 'in_progress' else status end,
-      actual_material_cost = coalesce((select sum((issued_quantity - returned_quantity) * unit_cost) from public.production_order_materials where production_order_id = p_order_id), 0),
+      actual_material_cost = coalesce((select sum(issued_value - returned_value) from public.production_order_materials where production_order_id = p_order_id), 0),
       updated_at = now()
   where id = p_order_id and business_id = p_business_id
   returning * into v_order;
+  perform public.revalue_production_outputs(p_business_id, p_order_id);
   return to_jsonb(v_order);
 end;
 $$;
@@ -763,6 +829,9 @@ declare
   v_material_id uuid;
   v_quantity numeric;
   v_remaining numeric;
+  v_remaining_value numeric;
+  v_unit_cost numeric;
+  v_return_value numeric;
 begin
   perform public.assert_business_permission(p_business_id, 'production_manage');
   if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then raise exception 'Chưa có nguyên liệu cần trả.'; end if;
@@ -783,22 +852,31 @@ begin
     if not found then raise exception 'Không tìm thấy dòng nguyên liệu của lệnh.'; end if;
     v_remaining := v_material.issued_quantity - v_material.returned_quantity;
     if v_quantity > v_remaining then raise exception 'Số lượng trả vượt quá nguyên liệu đã xuất.'; end if;
+    v_remaining_value := v_material.issued_value - v_material.returned_value;
+    v_return_value := case
+      when v_quantity = v_remaining then v_remaining_value
+      else round(v_quantity * case when v_remaining > 0 then v_remaining_value / v_remaining else 0 end, 2)
+    end;
+    v_unit_cost := case when v_quantity > 0 then v_return_value / v_quantity else 0 end;
     insert into public.stock_movements (
       business_id, product_id, movement_type, quantity, unit_cost, reference_type, reference_id, note, created_by
     ) values (
-      p_business_id, v_material.product_id, 'adjustment', v_quantity, v_material.unit_cost,
+      p_business_id, v_material.product_id, 'adjustment', v_quantity, v_unit_cost,
       'production_return', p_order_id, 'Trả nguyên liệu thừa của lệnh ' || v_order.code, auth.uid()
     );
     update public.production_order_materials
-    set returned_quantity = returned_quantity + v_quantity, updated_at = now()
+    set returned_quantity = returned_quantity + v_quantity,
+        returned_value = returned_value + v_return_value,
+        updated_at = now()
     where id = v_material.id and business_id = p_business_id;
   end loop;
 
   update public.production_orders
-  set actual_material_cost = coalesce((select sum((issued_quantity - returned_quantity) * unit_cost) from public.production_order_materials where production_order_id = p_order_id), 0),
+  set actual_material_cost = coalesce((select sum(issued_value - returned_value) from public.production_order_materials where production_order_id = p_order_id), 0),
       updated_at = now()
   where id = p_order_id and business_id = p_business_id
   returning * into v_order;
+  perform public.revalue_production_outputs(p_business_id, p_order_id);
   return to_jsonb(v_order);
 end;
 $$;
@@ -830,7 +908,7 @@ begin
 
   select coalesce(sum(quantity), 0) into v_existing_quantity from public.production_order_outputs where production_order_id = p_order_id;
   select
-    coalesce(sum((issued_quantity - returned_quantity) * unit_cost), 0)
+    coalesce(sum(issued_value - returned_value), 0)
     + coalesce((select sum(actual_amount) from public.production_order_costs where production_order_id = p_order_id), 0)
   into v_actual_total
   from public.production_order_materials
@@ -849,10 +927,20 @@ begin
     p_business_id, p_order_id, v_order.output_product_id, p_quantity, v_unit_cost, nullif(trim(p_note), ''), auth.uid()
   );
 
+  -- Every receipt for an order carries the same current average. Revalue older
+  -- receipts as costs accrue so multiple receipts never capitalize the order
+  -- total more than once. Completion performs one final revaluation.
+  update public.production_order_outputs
+  set unit_cost = v_unit_cost
+  where production_order_id = p_order_id and business_id = p_business_id;
+  update public.stock_movements
+  set unit_cost = v_unit_cost
+  where business_id = p_business_id and reference_type = 'production_receipt' and reference_id = p_order_id;
+
   update public.production_orders
   set status = case when status = 'planned' then 'in_progress' else status end,
       actual_quantity = actual_quantity + p_quantity,
-      actual_material_cost = coalesce((select sum((issued_quantity - returned_quantity) * unit_cost) from public.production_order_materials where production_order_id = p_order_id), 0),
+      actual_material_cost = coalesce((select sum(issued_value - returned_value) from public.production_order_materials where production_order_id = p_order_id), 0),
       updated_at = now()
   where id = p_order_id and business_id = p_business_id
   returning * into v_order;
@@ -926,7 +1014,7 @@ declare
   v_actual_amount numeric := greatest(0, coalesce(nullif(p_cost->>'actual_amount', '')::numeric, 0));
 begin
   perform public.assert_business_permission(p_business_id, 'production_cost');
-  select * into v_order from public.production_orders where id = p_order_id and business_id = p_business_id;
+  select * into v_order from public.production_orders where id = p_order_id and business_id = p_business_id for update;
   if not found then raise exception 'Không tìm thấy lệnh sản xuất.'; end if;
   if v_order.status = 'cancelled' then raise exception 'Lệnh sản xuất đã hủy.'; end if;
   if v_cost_type not in ('labor', 'machine', 'outsourcing', 'other') then raise exception 'Loại chi phí sản xuất không hợp lệ.'; end if;
@@ -937,6 +1025,7 @@ begin
     p_business_id, p_order_id, v_cost_type, v_description, v_planned_amount, v_actual_amount,
     nullif(trim(p_cost->>'note'), ''), auth.uid()
   ) returning * into v_cost;
+  perform public.revalue_production_outputs(p_business_id, p_order_id);
   return to_jsonb(v_cost);
 end;
 $$;

@@ -9,6 +9,7 @@ import {
   Plus,
   RefreshCw,
   Settings2,
+  Trash2,
   WalletCards,
 } from 'lucide-react'
 import useBusiness from '../hooks/useBusiness'
@@ -16,6 +17,8 @@ import useToast from '../hooks/useToast'
 import {
   createFinanceAccount,
   createFinanceTransaction,
+  deleteFinanceAccount,
+  deleteManualFinanceTransaction,
   listAllFinanceAccounts,
   listFinanceData,
   subscribeToFinance,
@@ -32,6 +35,7 @@ import EmptyState from '../components/common/EmptyState'
 import { canAccess } from '../lib/permissions'
 import Pagination from '../components/common/Pagination'
 import usePagination from '../hooks/usePagination'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 
 const directionLabels = { in: 'Thu tiền', out: 'Chi tiền' }
 const paymentLabels = { cash: 'Tiền mặt', bank: 'Chuyển khoản', card: 'Thẻ', other: 'Khác' }
@@ -47,6 +51,8 @@ export default function Finance() {
   const [direction, setDirection] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
   const [accountsOpen, setAccountsOpen] = useState(false)
+  const [deletingTransaction, setDeletingTransaction] = useState(null)
+  const [deletingTransactionBusy, setDeletingTransactionBusy] = useState(false)
 
   const loadFinance = useCallback(
     async ({ quiet = false } = {}) => {
@@ -111,6 +117,21 @@ export default function Finance() {
     setFormOpen(false)
     showToast(values.direction === 'in' ? 'Đã ghi nhận khoản thu.' : 'Đã ghi nhận khoản chi.')
     await loadFinance({ quiet: true })
+  }
+
+  async function confirmDeleteTransaction() {
+    if (!deletingTransaction || deletingTransactionBusy) return
+    setDeletingTransactionBusy(true)
+    try {
+      await deleteManualFinanceTransaction(businessId, deletingTransaction.id)
+      setDeletingTransaction(null)
+      showToast('Đã xóa giao dịch thu chi.')
+      await loadFinance({ quiet: true })
+    } catch (deleteError) {
+      showToast(deleteError.message || 'Không thể xóa giao dịch thu chi.', 'error')
+    } finally {
+      setDeletingTransactionBusy(false)
+    }
   }
 
   return (
@@ -292,7 +313,8 @@ export default function Finance() {
                     <th className="px-4 py-3.5">Tài khoản</th>
                     <th className="px-4 py-3.5">Khoản mục</th>
                     <th className="px-4 py-3.5 text-right">Số tiền</th>
-                    <th className="px-5 py-3.5">Phương thức</th>
+                    <th className="px-4 py-3.5">Phương thức</th>
+                    <th className="px-5 py-3.5 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -301,6 +323,7 @@ export default function Finance() {
                       key={transaction.id}
                       transaction={transaction}
                       account={accounts.find((account) => account.id === transaction.account_id)}
+                      onDelete={() => setDeletingTransaction(transaction)}
                     />
                   ))}
                 </tbody>
@@ -312,6 +335,7 @@ export default function Finance() {
                   key={transaction.id}
                   transaction={transaction}
                   account={accounts.find((account) => account.id === transaction.account_id)}
+                  onDelete={() => setDeletingTransaction(transaction)}
                 />
               ))}
             </div>
@@ -339,11 +363,21 @@ export default function Finance() {
         onClose={() => setAccountsOpen(false)}
         onChanged={() => loadFinance({ quiet: true })}
       />
+      <ConfirmDialog
+        open={Boolean(deletingTransaction)}
+        onClose={() => setDeletingTransaction(null)}
+        onConfirm={confirmDeleteTransaction}
+        loading={deletingTransactionBusy}
+        title="Xóa giao dịch thu chi?"
+        description={deletingTransaction ? `${deletingTransaction.code || ''} · ${deletingTransaction.category || 'Giao dịch'}` : ''}
+        confirmLabel="Xóa giao dịch"
+        message="Chỉ giao dịch thu chi nhập thủ công mới có thể xóa. Giao dịch phát sinh từ bán hàng, nhập hàng hoặc trả hàng phải hủy tại chứng từ gốc."
+      />
     </div>
   )
 }
 
-function FinanceRow({ transaction, account }) {
+function FinanceRow({ transaction, account, onDelete }) {
   const incoming = transaction.direction === 'in'
   return (
     <tr className="transition hover:bg-slate-50/70">
@@ -386,14 +420,21 @@ function FinanceRow({ transaction, account }) {
       >
         {incoming ? '+' : '−'} {formatCurrency(transaction.amount)}
       </td>
-      <td className="px-5 py-4 text-sm text-slate-500">
+      <td className="px-4 py-4 text-sm text-slate-500">
         {paymentLabels[transaction.payment_method] || transaction.payment_method || '—'}
+      </td>
+      <td className="px-5 py-4 text-right">
+        {(!transaction.reference_type || transaction.reference_type === 'manual') && (
+          <button className="btn-icon ml-auto text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa giao dịch ${transaction.code || ''}`} title="Xóa">
+            <Trash2 size={17} />
+          </button>
+        )}
       </td>
     </tr>
   )
 }
 
-function FinanceCard({ transaction, account }) {
+function FinanceCard({ transaction, account, onDelete }) {
   const incoming = transaction.direction === 'in'
   return (
     <article className="p-4">
@@ -434,6 +475,12 @@ function FinanceCard({ transaction, account }) {
           </div>
           {transaction.note && (
             <p className="mt-2 truncate text-xs text-slate-400">{transaction.note}</p>
+          )}
+          {(!transaction.reference_type || transaction.reference_type === 'manual') && (
+            <button className="btn-secondary mt-3 w-full justify-center text-rose-600" type="button" onClick={onDelete}>
+              <Trash2 size={16} />
+              <span>Xóa giao dịch</span>
+            </button>
           )}
         </div>
       </div>
@@ -666,6 +713,8 @@ function FinanceAccountsModal({ open, businessId, onClose, onChanged }) {
   const [editing, setEditing] = useState(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [values, setValues] = useState({
     code: '',
@@ -765,7 +814,26 @@ function FinanceAccountsModal({ open, businessId, onClose, onChanged }) {
     }
   }
 
+  async function confirmDelete() {
+    if (!deletingAccount || deleting) return
+    setDeleting(true)
+    setError('')
+    try {
+      await deleteFinanceAccount(businessId, deletingAccount.id)
+      if (editing?.id === deletingAccount.id) resetForm()
+      setDeletingAccount(null)
+      await loadAccounts()
+      await onChanged()
+    } catch (deleteError) {
+      setDeletingAccount(null)
+      setError(deleteError.message || 'Không thể xóa tài khoản tiền.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
+    <>
     <Modal
       open={open}
       onClose={saving ? () => {} : onClose}
@@ -802,10 +870,10 @@ function FinanceAccountsModal({ open, businessId, onClose, onChanged }) {
           ) : (
             <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
               {accounts.map((account) => (
+                <div className="flex items-center gap-1 p-2 pl-4 transition hover:bg-slate-50/80" key={account.id}>
                 <button
-                  className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-slate-50/80"
+                  className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
                   type="button"
-                  key={account.id}
                   onClick={() => startEdit(account)}
                 >
                   <span
@@ -835,6 +903,16 @@ function FinanceAccountsModal({ open, businessId, onClose, onChanged }) {
                   </div>
                   <Pencil className="shrink-0 text-slate-300" size={15} />
                 </button>
+                <button
+                  className="btn-icon shrink-0 text-rose-600 hover:bg-rose-50"
+                  type="button"
+                  onClick={() => setDeletingAccount(account)}
+                  aria-label={`Xóa tài khoản ${account.name}`}
+                  title="Xóa"
+                >
+                  <Trash2 size={16} />
+                </button>
+                </div>
               ))}
             </div>
           )}
@@ -953,5 +1031,16 @@ function FinanceAccountsModal({ open, businessId, onClose, onChanged }) {
         </form>
       </div>
     </Modal>
+    <ConfirmDialog
+      open={Boolean(deletingAccount)}
+      onClose={() => setDeletingAccount(null)}
+      onConfirm={confirmDelete}
+      loading={deleting}
+      title="Xóa vĩnh viễn tài khoản tiền?"
+      description={deletingAccount ? `“${deletingAccount.name}” sẽ bị xóa khỏi danh sách.` : ''}
+      confirmLabel="Xóa tài khoản"
+      message="Chỉ tài khoản có số dư đầu kỳ bằng 0 và chưa phát sinh giao dịch mới có thể xóa."
+    />
+    </>
   )
 }
