@@ -22,7 +22,7 @@ import {
   subscribeToReturns,
 } from '../services/returnService'
 import { listFinanceAccounts } from '../services/financeService'
-import { formatCurrency, formatDateTime, formatNumber } from '../lib/formatters'
+import { currencyInputStep, formatCurrency, formatDateTime, formatNumber, roundCurrency } from '../lib/formatters'
 import PageHeader from '../components/common/PageHeader'
 import MetricCard from '../components/common/MetricCard'
 import FilterBar from '../components/common/FilterBar'
@@ -659,10 +659,12 @@ function SettleReturnModal({ open, row, businessId, onClose, onSaved }) {
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const displayedBalance = roundCurrency(row?.remainingAmount)
+  const inputStep = currencyInputStep()
 
   useEffect(() => {
     if (!open || !businessId) return
-    setAmount(String(row?.remainingAmount || ''))
+    setAmount(row?.remainingAmount == null ? '' : String(roundCurrency(row.remainingAmount)))
     setNote('')
     setError('')
     listFinanceAccounts(businessId)
@@ -677,14 +679,15 @@ function SettleReturnModal({ open, row, businessId, onClose, onSaved }) {
     event.preventDefault()
     const value = Number(amount) || 0
     if (!accountId) return setError('Vui lòng chọn tài khoản tiền.')
-    if (value <= 0 || value > row.remainingAmount) return setError('Số tiền đối soát không hợp lệ.')
+    if (value <= 0 || value > displayedBalance) return setError('Số tiền đối soát không hợp lệ.')
+    const settlementAmount = value === displayedBalance ? Number(row.remainingAmount) : value
     setSaving(true)
     setError('')
     try {
       await settleReturn(businessId, {
         type: row.type,
         returnId: row.rawId,
-        amount: value,
+        amount: settlementAmount,
         accountId,
         paymentMethod,
         note: note.trim() || null,
@@ -703,7 +706,7 @@ function SettleReturnModal({ open, row, businessId, onClose, onSaved }) {
       open={open}
       onClose={saving ? () => {} : onClose}
       title={row?.type === 'sales' ? 'Hoàn tiền cho khách' : 'Nhận tiền từ nhà cung cấp'}
-      description={row ? 'Còn cần đối soát: ' + formatCurrency(row.remainingAmount) : ''}
+      description={row ? 'Còn cần đối soát: ' + formatCurrency(displayedBalance) : ''}
       size="sm"
       icon={Banknote}
       tone={row?.type === 'sales' ? 'rose' : 'emerald'}
@@ -752,9 +755,9 @@ function SettleReturnModal({ open, row, businessId, onClose, onSaved }) {
           <input
             className="field tabular-nums text-right text-lg font-bold"
             type="number"
-            min="0.01"
-            max={row?.remainingAmount}
-            step="1"
+            min={inputStep}
+            max={displayedBalance}
+            step={inputStep}
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             required

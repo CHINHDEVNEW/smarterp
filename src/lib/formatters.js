@@ -46,6 +46,17 @@ export function formatCurrency(value) {
   return currencyFormatter.format(Number(value) || 0).replace(currencyCode, currencySymbol)
 }
 
+export function roundCurrency(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 0
+  const factor = 10 ** moneyDecimals
+  return Math.round((number + Number.EPSILON) * factor) / factor
+}
+
+export function currencyInputStep() {
+  return 1 / (10 ** moneyDecimals)
+}
+
 export function formatNumber(value) {
   return numberFormatter.format(Number(value) || 0)
 }

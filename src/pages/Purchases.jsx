@@ -5,7 +5,7 @@ import useBusiness from '../hooks/useBusiness'
 import useToast from '../hooks/useToast'
 import { cancelPurchaseOrder, createPurchaseOrder, deleteCancelledPurchaseOrder, getPurchaseOrderItems, listPurchaseOrders, recordPurchasePayment, subscribeToPurchaseOrders } from '../services/purchaseService'
 import { listFinanceAccounts } from '../services/financeService'
-import { formatCurrency, formatDateTime, formatNumber } from '../lib/formatters'
+import { currencyInputStep, formatCurrency, formatDateTime, formatNumber, roundCurrency } from '../lib/formatters'
 import PurchaseOrderForm from '../components/purchases/PurchaseOrderForm'
 import EmptyState from '../components/common/EmptyState'
 import Loading from '../components/common/Loading'
@@ -407,10 +407,12 @@ function PurchasePaymentForm({ open, order, businessId, onClose, onSaved }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const displayedBalance = roundCurrency(order?.balance_due)
+  const inputStep = currencyInputStep()
 
   useEffect(() => {
     if (!open || !order) return
-    setAmount(order.balance_due == null ? '' : String(order.balance_due))
+    setAmount(order.balance_due == null ? '' : String(roundCurrency(order.balance_due)))
     setPaymentMethod('cash')
     setNote('')
     setError('')
@@ -425,11 +427,12 @@ function PurchasePaymentForm({ open, order, businessId, onClose, onSaved }) {
     event.preventDefault()
     const numericAmount = Number(amount) || 0
     if (!accountId) return setError('Vui lòng chọn tài khoản chi tiền.')
-    if (numericAmount <= 0 || numericAmount > Number(order.balance_due)) return setError('Số tiền trả không hợp lệ.')
+    if (numericAmount <= 0 || numericAmount > displayedBalance) return setError('Số tiền trả không hợp lệ.')
+    const paymentAmount = numericAmount === displayedBalance ? Number(order.balance_due) : numericAmount
     setSaving(true)
     setError('')
     try {
-      await recordPurchasePayment(businessId, { purchaseOrderId: order.id, amount: numericAmount, accountId, paymentMethod, note: note.trim() })
+      await recordPurchasePayment(businessId, { purchaseOrderId: order.id, amount: paymentAmount, accountId, paymentMethod, note: note.trim() })
       await onSaved()
     } catch (saveError) {
       setError(saveError.message || 'Không thể ghi nhận thanh toán.')
@@ -443,7 +446,7 @@ function PurchasePaymentForm({ open, order, businessId, onClose, onSaved }) {
       open={open}
       onClose={saving ? () => {} : onClose}
       title={order ? 'Trả tiền phiếu ' + order.code : 'Trả tiền'}
-      description={order ? 'Còn phải trả: ' + formatCurrency(order.balance_due) : ''}
+      description={order ? 'Còn phải trả: ' + formatCurrency(displayedBalance) : ''}
       size="sm"
       icon={Banknote}
       tone="rose"
@@ -485,9 +488,9 @@ function PurchasePaymentForm({ open, order, businessId, onClose, onSaved }) {
           <input
             className="field tabular-nums text-right text-lg font-bold"
             type="number"
-            min="0.01"
-            max={order?.balance_due}
-            step="1"
+            min={inputStep}
+            max={displayedBalance}
+            step={inputStep}
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             required
