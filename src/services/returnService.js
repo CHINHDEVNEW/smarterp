@@ -59,6 +59,16 @@ export async function cancelReturn(businessId, type, returnId, reason) {
   return data
 }
 
+export async function deleteReturn(businessId, type, returnId) {
+  const { data, error } = await supabase.rpc('app_delete_return', {
+    p_business_id: businessId,
+    p_return_type: type,
+    p_return_id: returnId,
+  })
+  throwIfError(error, 'Không thể xóa phiếu trả hàng.')
+  return data
+}
+
 export async function listReturnItems(businessId, row) {
   if (!row?.rawId) return []
   const table = row.type === 'sales' ? 'sales_return_items' : 'purchase_return_items'

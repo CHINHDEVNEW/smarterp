@@ -14,7 +14,7 @@ function isActiveDocument(order) {
   return !['cancelled', 'canceled', 'draft'].includes(String(order?.status || '').toLowerCase())
 }
 
-export default function ReturnForm({ open, businessId, initialType = 'sales', onClose, onSave }) {
+export default function ReturnForm({ open, businessId, initialType = 'sales', initialOrderId = '', lockType = false, onClose, onSave }) {
   const [type, setType] = useState(initialType)
   const [form, setForm] = useState(initialForm)
   const [salesOrders, setSalesOrders] = useState([])
@@ -46,7 +46,7 @@ export default function ReturnForm({ open, businessId, initialType = 'sales', on
     if (!open || !businessId) return
     setType(initialType)
     setForm({ ...initialForm, returnDate: localDateKey() })
-    setSelectedOrderId('')
+    setSelectedOrderId(initialOrderId)
     setItems([])
     setError('')
     setDataError('')
@@ -61,7 +61,7 @@ export default function ReturnForm({ open, businessId, initialType = 'sales', on
     listFinanceAccounts(businessId)
       .then((rows) => setAccounts(rows))
       .catch((loadError) => setDataError((current) => current || loadError.message || 'Không tải được tài khoản tiền.'))
-  }, [businessId, initialType, open])
+  }, [businessId, initialOrderId, initialType, open])
 
   useEffect(() => {
     if (!open || !businessId || !selectedOrderId) {
@@ -161,7 +161,7 @@ export default function ReturnForm({ open, businessId, initialType = 'sales', on
       <fieldset>
         <legend className="form-section-title"><RotateCcw size={18} /> Chứng từ trả hàng</legend>
         <div className="form-grid">
-          <Field label="Loại phiếu"><select className="field" value={type} onChange={(event) => changeType(event.target.value)} disabled={saving}><option value="sales">Trả hàng bán</option><option value="purchase">Trả hàng nhập</option></select></Field>
+          <Field label="Loại phiếu"><select className="field" value={type} onChange={(event) => changeType(event.target.value)} disabled={saving || lockType}><option value="sales">Trả hàng bán</option><option value="purchase">Trả hàng nhập</option></select></Field>
           <Field label="Ngày trả" required><input className="field" type="date" value={form.returnDate} onChange={(event) => updateForm('returnDate', event.target.value)} required /></Field>
           <Field label={orderLabel} required className="sm:col-span-2"><select className="field" value={selectedOrderId} onChange={(event) => setSelectedOrderId(event.target.value)} disabled={ordersLoading || saving} required><option value="">{ordersLoading ? 'Đang tải chứng từ...' : 'Chọn chứng từ gốc'}</option>{orders.map((order) => <option key={order.id} value={order.id}>{order.code} · {type === 'sales' ? (order.customer_name || 'Khách lẻ') : (order.supplier_name || 'Không chọn NCC')} · {formatCurrency(order.total)}</option>)}</select></Field>
         </div>

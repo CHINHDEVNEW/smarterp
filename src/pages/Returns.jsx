@@ -9,6 +9,7 @@ import {
   PackageCheck,
   Plus,
   RefreshCw,
+  Trash2,
 } from 'lucide-react'
 import useBusiness from '../hooks/useBusiness'
 import useToast from '../hooks/useToast'
@@ -16,6 +17,7 @@ import {
   createPurchaseReturn,
   createSalesReturn,
   cancelReturn,
+  deleteReturn,
   listReturnItems,
   listReturns,
   settleReturn,
@@ -34,6 +36,7 @@ import ReturnForm from '../components/returns/ReturnForm'
 import Pagination from '../components/common/Pagination'
 import usePagination from '../hooks/usePagination'
 import CancelDocumentModal from '../components/common/CancelDocumentModal'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 
 const statusLabels = {
   draft: 'Bản nháp',
@@ -58,6 +61,8 @@ export default function Returns() {
   const [viewing, setViewing] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [formType, setFormType] = useState('sales')
+  const [deletingReturn, setDeletingReturn] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   const loadReturns = useCallback(async () => {
     if (!businessId) return
@@ -90,6 +95,22 @@ export default function Returns() {
     showToast('Đã tạo phiếu ' + (created?.code || 'trả hàng') + '.')
     setFormOpen(false)
     await loadReturns()
+  }
+
+  async function confirmDeleteReturn() {
+    if (!deletingReturn || deleting) return
+    setDeleting(true)
+    try {
+      await deleteReturn(businessId, deletingReturn.type, deletingReturn.rawId)
+      setDeletingReturn(null)
+      setViewing(null)
+      showToast('Đã xóa phiếu trả hàng và hoàn nguyên dữ liệu liên quan.')
+      await loadReturns()
+    } catch (deleteError) {
+      showToast(deleteError.message || 'Không thể xóa phiếu trả hàng.', 'error')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filtered = useMemo(() => {
@@ -290,14 +311,14 @@ export default function Returns() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {returnPages.pageItems.map((row) => (
-                    <ReturnRow key={row.key} row={row} onView={() => setViewing(row)} />
+                    <ReturnRow key={row.key} row={row} onView={() => setViewing(row)} onDelete={() => setDeletingReturn(row)} />
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="divide-y divide-slate-100 lg:hidden">
               {returnPages.pageItems.map((row) => (
-                <ReturnCard key={row.key} row={row} onView={() => setViewing(row)} />
+                <ReturnCard key={row.key} row={row} onView={() => setViewing(row)} onDelete={() => setDeletingReturn(row)} />
               ))}
             </div>
             <Pagination
@@ -317,6 +338,7 @@ export default function Returns() {
         row={viewing}
         businessId={businessId}
         onClose={() => setViewing(null)}
+        onDelete={() => setDeletingReturn(viewing)}
         onSettled={async () => {
           setViewing(null)
           showToast('Đã cập nhật phiếu trả hàng.')
@@ -329,6 +351,16 @@ export default function Returns() {
         initialType={formType}
         onClose={() => setFormOpen(false)}
         onSave={saveReturn}
+      />
+      <ConfirmDialog
+        open={Boolean(deletingReturn)}
+        onClose={() => setDeletingReturn(null)}
+        onConfirm={confirmDeleteReturn}
+        loading={deleting}
+        title="Xóa vĩnh viễn phiếu trả hàng?"
+        description={deletingReturn ? `“${deletingReturn.code}” sẽ bị xóa khỏi danh sách.` : ''}
+        confirmLabel="Xóa phiếu trả"
+        message="Hệ thống sẽ hoàn nguyên tồn kho và dòng tiền liên quan trước khi xóa. Nếu hàng đã được sử dụng tiếp và không thể hoàn nguyên an toàn, thao tác sẽ bị chặn."
       />
     </div>
   )
@@ -348,7 +380,7 @@ function statusTone(value) {
   return 'slate'
 }
 
-function ReturnRow({ row, onView }) {
+function ReturnRow({ row, onView, onDelete }) {
   const kind = returnType(row)
   const paymentStatus = row.remainingAmount > 0 ? row.refundStatus : 'refunded'
   const tone = statusTone(paymentStatus)
@@ -378,30 +410,22 @@ function ReturnRow({ row, onView }) {
         />
       </td>
       <td className="px-5 py-4 text-right">
-        <button
-          className="btn-icon ml-auto"
-          type="button"
-          onClick={onView}
-          aria-label={`Xem phiếu ${row.code}`}
-        >
-          <Eye size={17} />
-        </button>
+        <div className="flex justify-end gap-1">
+          <button className="btn-icon" type="button" onClick={onView} aria-label={`Xem phiếu ${row.code}`} title="Xem chi tiết"><Eye size={17} /></button>
+          <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa phiếu ${row.code}`} title="Xóa"><Trash2 size={17} /></button>
+        </div>
       </td>
     </tr>
   )
 }
 
-function ReturnCard({ row, onView }) {
+function ReturnCard({ row, onView, onDelete }) {
   const kind = returnType(row)
   const paymentStatus = row.remainingAmount > 0 ? row.refundStatus : 'refunded'
   const tone = statusTone(paymentStatus)
 
   return (
-    <button
-      className="block w-full p-4 text-left transition hover:bg-slate-50/80"
-      type="button"
-      onClick={onView}
-    >
+    <article className="w-full p-4 text-left transition hover:bg-slate-50/80">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-sky-700">{row.code}</p>
@@ -427,7 +451,11 @@ function ReturnCard({ row, onView }) {
           {formatCurrency(row.total)}
         </p>
       </div>
-    </button>
+      <div className="mt-3 flex gap-2">
+        <button className="btn-secondary flex-1 justify-center" type="button" onClick={onView}><Eye size={16} /> Xem chi tiết</button>
+        <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa phiếu ${row.code}`} title="Xóa"><Trash2 size={16} /></button>
+      </div>
+    </article>
   )
 }
 
@@ -453,7 +481,7 @@ const labels = {
   reason: 'Lý do',
 }
 
-function ReturnDetail({ open, row, businessId, onClose, onSettled }) {
+function ReturnDetail({ open, row, businessId, onClose, onDelete, onSettled }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -519,6 +547,10 @@ function ReturnDetail({ open, row, businessId, onClose, onSettled }) {
                 <span>Hủy phiếu</span>
               </button>
             )}
+            <button className="btn-danger flex-1 sm:flex-initial" type="button" onClick={onDelete}>
+              <Trash2 size={17} />
+              <span>Xóa phiếu</span>
+            </button>
             <button className="btn-secondary flex-1 sm:flex-initial" type="button" onClick={onClose}>
               Đóng
             </button>

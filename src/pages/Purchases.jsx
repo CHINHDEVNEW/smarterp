@@ -1,12 +1,14 @@
 /* oxlint-disable react/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, Banknote, CircleDollarSign, Eye, Plus, Printer, RefreshCw, Trash2, Truck } from 'lucide-react'
+import { Ban, Banknote, CircleDollarSign, Eye, Plus, Printer, RefreshCw, RotateCcw, Trash2, Truck } from 'lucide-react'
 import useBusiness from '../hooks/useBusiness'
 import useToast from '../hooks/useToast'
 import { cancelPurchaseOrder, createPurchaseOrder, deleteCancelledPurchaseOrder, getPurchaseOrderItems, listPurchaseOrders, recordPurchasePayment, subscribeToPurchaseOrders } from '../services/purchaseService'
 import { listFinanceAccounts } from '../services/financeService'
+import { createPurchaseReturn } from '../services/returnService'
 import { currencyInputStep, formatCurrency, formatDateTime, formatNumber, roundCurrency } from '../lib/formatters'
 import PurchaseOrderForm from '../components/purchases/PurchaseOrderForm'
+import ReturnForm from '../components/returns/ReturnForm'
 import EmptyState from '../components/common/EmptyState'
 import Loading from '../components/common/Loading'
 import Modal from '../components/common/Modal'
@@ -41,6 +43,7 @@ export default function Purchases() {
   const [status, setStatus] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
   const [viewing, setViewing] = useState(null)
+  const [returningOrder, setReturningOrder] = useState(null)
   const [deletingOrder, setDeletingOrder] = useState(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -97,6 +100,13 @@ export default function Purchases() {
     const created = await createPurchaseOrder(businessId, payload.order, payload.items)
     showToast(`Đã tạo phiếu ${created?.code || 'nhập hàng'}.`)
     setFormOpen(false)
+    await loadOrders({ quiet: true })
+  }
+
+  async function savePurchaseReturn(payload) {
+    const created = await createPurchaseReturn(businessId, payload)
+    showToast(`Đã tạo phiếu ${created?.code || 'trả hàng nhà cung cấp'}.`)
+    setReturningOrder(null)
     await loadOrders({ quiet: true })
   }
 
@@ -207,7 +217,7 @@ export default function Purchases() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {purchasePages.pageItems.map((order) => (
-                    <PurchaseRow key={order.id} order={order} onView={() => setViewing(order)} onDelete={() => setDeletingOrder(order)} />
+                    <PurchaseRow key={order.id} order={order} onView={() => setViewing(order)} onReturn={() => setReturningOrder(order)} onDelete={() => setDeletingOrder(order)} />
                   ))}
                 </tbody>
               </table>
@@ -215,7 +225,7 @@ export default function Purchases() {
 
             <div className="divide-y divide-slate-100 lg:hidden">
               {purchasePages.pageItems.map((order) => (
-                <PurchaseCard key={order.id} order={order} onView={() => setViewing(order)} onDelete={() => setDeletingOrder(order)} />
+                <PurchaseCard key={order.id} order={order} onView={() => setViewing(order)} onReturn={() => setReturningOrder(order)} onDelete={() => setDeletingOrder(order)} />
               ))}
             </div>
 
@@ -231,11 +241,24 @@ export default function Purchases() {
       </section>
 
       <PurchaseOrderForm open={formOpen} businessId={businessId} onClose={() => setFormOpen(false)} onSave={saveOrder} />
+      <ReturnForm
+        open={Boolean(returningOrder)}
+        businessId={businessId}
+        initialType="purchase"
+        initialOrderId={returningOrder?.id || ''}
+        lockType
+        onClose={() => setReturningOrder(null)}
+        onSave={savePurchaseReturn}
+      />
       <PurchaseDetail
         open={Boolean(viewing)}
         order={viewing}
         businessId={businessId}
         onClose={() => setViewing(null)}
+        onReturn={() => {
+          setReturningOrder(viewing)
+          setViewing(null)
+        }}
         onPaymentComplete={() => loadOrders({ quiet: true })}
         onCancelled={async () => {
           setViewing(null)
@@ -251,13 +274,13 @@ export default function Purchases() {
         title="Xóa vĩnh viễn phiếu nhập?"
         description={deletingOrder ? `“${deletingOrder.code}” sẽ bị xóa khỏi danh sách.` : ''}
         confirmLabel="Xóa phiếu nhập"
-        message="Hệ thống sẽ tự đảo tồn kho và dòng tiền trước khi xóa. Phiếu đã có trả hàng sẽ được giữ lại để bảo toàn lịch sử."
+        message="Hệ thống sẽ tự đảo tồn kho và dòng tiền trước khi xóa. Nếu phiếu nhập đã có phiếu trả hàng, hãy xóa phiếu trả trước."
       />
     </div>
   )
 }
 
-function PurchaseRow({ order, onView, onDelete }) {
+function PurchaseRow({ order, onView, onReturn, onDelete }) {
   const state = paymentState(order)
   return (
     <tr className="transition-colors hover:bg-slate-50/80">
@@ -279,6 +302,7 @@ function PurchaseRow({ order, onView, onDelete }) {
       <td className="px-5 py-3.5 text-right">
         <div className="flex justify-end gap-1">
           <button className="btn-icon" type="button" onClick={onView} aria-label={`Xem phiếu ${order.code}`} title="Xem chi tiết"><Eye size={16} /></button>
+          {!['cancelled', 'draft'].includes(String(order.status)) && Number(order.net_total ?? order.total) > 0 && <button className="btn-icon text-indigo-600 hover:bg-indigo-50" type="button" onClick={onReturn} aria-label={`Trả hàng phiếu ${order.code}`} title="Trả hàng NCC"><RotateCcw size={16} /></button>}
           <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa phiếu ${order.code}`} title="Xóa"><Trash2 size={16} /></button>
         </div>
       </td>
@@ -286,7 +310,7 @@ function PurchaseRow({ order, onView, onDelete }) {
   )
 }
 
-function PurchaseCard({ order, onView, onDelete }) {
+function PurchaseCard({ order, onView, onReturn, onDelete }) {
   const state = paymentState(order)
   return (
     <article className="p-4 transition hover:bg-slate-50/70">
@@ -315,13 +339,14 @@ function PurchaseCard({ order, onView, onDelete }) {
       </div>
       <div className="mt-3 flex gap-2">
         <button className="btn-secondary flex-1 justify-center" type="button" onClick={onView}><Eye size={16} /> Xem chi tiết</button>
+        {!['cancelled', 'draft'].includes(String(order.status)) && Number(order.net_total ?? order.total) > 0 && <button className="btn-icon text-indigo-600 hover:bg-indigo-50" type="button" onClick={onReturn} aria-label={`Trả hàng phiếu ${order.code}`} title="Trả hàng NCC"><RotateCcw size={16} /></button>}
         <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa phiếu ${order.code}`} title="Xóa"><Trash2 size={16} /></button>
       </div>
     </article>
   )
 }
 
-function PurchaseDetail({ open, order, businessId, onClose, onPaymentComplete, onCancelled }) {
+function PurchaseDetail({ open, order, businessId, onClose, onReturn, onPaymentComplete, onCancelled }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -370,6 +395,11 @@ function PurchaseDetail({ open, order, businessId, onClose, onPaymentComplete, o
           {order?.status !== 'cancelled' && (
             <button className="btn-secondary text-rose-600 flex-1 sm:flex-initial" type="button" onClick={() => setCancelOpen(true)}>
               <Ban size={17} /> Hủy phiếu
+            </button>
+          )}
+          {order && !['cancelled', 'draft'].includes(String(order.status)) && Number(order.net_total ?? order.total) > 0 && (
+            <button className="btn-secondary flex-1 text-indigo-600 sm:flex-initial" type="button" onClick={onReturn} disabled={loading}>
+              <RotateCcw size={17} /> Trả hàng NCC
             </button>
           )}
           {order && Number(order.balance_due) > 0 && order.status !== 'cancelled' && order.status !== 'draft' && (
