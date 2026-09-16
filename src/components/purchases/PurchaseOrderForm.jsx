@@ -4,13 +4,14 @@ import { CalendarDays, Minus, PackagePlus, Plus, Save, ShoppingCart, Trash2, Tru
 import Modal from '../common/Modal'
 import { listProducts } from '../../services/productService'
 import { listSuppliers } from '../../services/supplierService'
+import { getPurchaseOrderItems } from '../../services/purchaseService'
 import { formatCurrency, localDateKey } from '../../lib/formatters'
 import useBusiness from '../../hooks/useBusiness'
 import { clearFormDraft, formDraftKey, loadFormDraft, saveFormDraft } from '../../lib/formDraft'
 
 const initialOrder = { supplier_id: '', order_date: localDateKey(), due_date: '', discount: '0', shipping_fee: '0', vat_rate: '0', note: '' }
 
-export default function PurchaseOrderForm({ open, businessId, onClose, onSave }) {
+export default function PurchaseOrderForm({ open, businessId, editingOrder = null, onClose, onSave }) {
   const { settings } = useBusiness()
   const defaultVat = Number(settings?.default_vat) || 0
   const [order, setOrder] = useState(initialOrder)
@@ -19,30 +20,64 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
   const [items, setItems] = useState([])
   const [selectedProductId, setSelectedProductId] = useState('')
   const [loadingData, setLoadingData] = useState(false)
+  const [formReady, setFormReady] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const draftKey = formDraftKey(businessId, 'purchase-new')
+  const isEditing = Boolean(editingOrder)
+  const draftKey = formDraftKey(businessId, isEditing ? `purchase-edit-${editingOrder.id}` : 'purchase-new')
 
   useEffect(() => {
     if (!open || !businessId) return
     const draft = loadFormDraft(draftKey)
-    setOrder(draft?.order ?? { ...initialOrder, order_date: localDateKey(), vat_rate: String(defaultVat) })
-    setItems(Array.isArray(draft?.items) ? draft.items : [])
+    const baseOrder = editingOrder
+      ? {
+          supplier_id: editingOrder.supplier_id || '',
+          order_date: editingOrder.order_date?.slice(0, 10) || localDateKey(),
+          due_date: editingOrder.due_date?.slice(0, 10) || '',
+          discount: String(editingOrder.discount ?? 0),
+          shipping_fee: String(editingOrder.shipping_fee ?? 0),
+          vat_rate: String(editingOrder.vat_rate ?? 0),
+          note: editingOrder.note || '',
+        }
+      : { ...initialOrder, order_date: localDateKey(), vat_rate: String(defaultVat) }
+    const draftItems = Array.isArray(draft?.items) ? draft.items : null
+    setOrder(draft?.order ?? baseOrder)
+    setItems(draftItems ?? [])
     setSelectedProductId('')
     setError('')
     setLoadingData(true)
-    Promise.all([listProducts(businessId), listSuppliers(businessId)])
-      .then(([productRows, supplierRows]) => {
-        setProducts(productRows.filter((product) => product.active))
-        setSuppliers(supplierRows.filter((supplier) => supplier.active))
+    setFormReady(false)
+    Promise.all([
+      listProducts(businessId),
+      listSuppliers(businessId),
+      editingOrder ? getPurchaseOrderItems(businessId, editingOrder.id) : Promise.resolve([]),
+    ])
+      .then(([productRows, supplierRows, existingItems]) => {
+        const sourceItems = draftItems ?? existingItems.map((item) => ({
+          product_id: item.product_id,
+          name: item.product_name,
+          code: item.product_code,
+          unit: item.unit,
+          product_type: productRows.find((product) => product.id === item.product_id)?.product_type,
+          quantity: String(item.quantity),
+          unit_cost: String(item.unit_cost),
+        }))
+        const selectedProductIds = new Set(sourceItems.map((item) => item.product_id))
+        const selectedSupplierId = (draft?.order ?? baseOrder).supplier_id
+        setProducts(productRows.filter((product) => product.active || selectedProductIds.has(product.id)))
+        setSuppliers(supplierRows.filter((supplier) => supplier.active || supplier.id === selectedSupplierId))
+        setItems(sourceItems)
       })
       .catch((loadError) => setError(loadError.message || 'Không tải được dữ liệu lập phiếu nhập.'))
-      .finally(() => setLoadingData(false))
-  }, [businessId, defaultVat, draftKey, open])
+      .finally(() => {
+        setLoadingData(false)
+        setFormReady(true)
+      })
+  }, [businessId, defaultVat, draftKey, editingOrder, open])
 
   useEffect(() => {
-    if (open) saveFormDraft(draftKey, { order, items })
-  }, [draftKey, items, open, order])
+    if (open && formReady) saveFormDraft(draftKey, { order, items })
+  }, [draftKey, formReady, items, open, order])
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0), 0), [items])
   const discount = Math.max(0, Number(order.discount) || 0)
@@ -126,7 +161,7 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
       })
       clearFormDraft(draftKey)
     } catch (saveError) {
-      setError(saveError.message || 'Không thể tạo phiếu nhập.')
+      setError(saveError.message || (isEditing ? 'Không thể sửa phiếu nhập.' : 'Không thể tạo phiếu nhập.'))
     } finally {
       setSaving(false)
     }
@@ -136,8 +171,8 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
     <Modal
       open={open}
       onClose={saving ? () => {} : closeForm}
-      title="Tạo phiếu nhập hàng"
-      description="Phiếu được xác nhận ngay và tự động cộng vào tồn kho."
+      title={isEditing ? `Sửa phiếu ${editingOrder.code}` : 'Tạo phiếu nhập hàng'}
+      description={isEditing ? 'Chỉ phần chênh lệch sau khi sửa được cập nhật vào tồn kho.' : 'Phiếu được xác nhận ngay và tự động cộng vào tồn kho.'}
       size="lg"
       icon={Truck}
       tone="sky"
@@ -147,9 +182,9 @@ export default function PurchaseOrderForm({ open, businessId, onClose, onSave })
           <button className="btn-secondary w-full sm:w-auto" type="button" onClick={closeForm} disabled={saving}>
             Hủy
           </button>
-          <button className="btn-primary w-full sm:w-auto" type="submit" form="purchase-form" disabled={saving || loadingData}>
+          <button className="btn-primary w-full sm:w-auto" type="submit" form="purchase-form" disabled={saving || loadingData || !formReady}>
             <Save size={17} />
-            <span>{saving ? 'Đang tạo phiếu...' : 'Xác nhận phiếu nhập'}</span>
+            <span>{saving ? 'Đang lưu...' : isEditing ? 'Lưu thay đổi' : 'Xác nhận phiếu nhập'}</span>
           </button>
         </div>
       }

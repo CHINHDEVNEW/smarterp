@@ -29,6 +29,18 @@ export async function createPurchaseOrder(businessId, order, items) {
   return data
 }
 
+export async function updatePurchaseOrder(businessId, purchaseOrderId, order, items) {
+  const { data, error } = await supabase.rpc('app_update_purchase_order', {
+    p_business_id: businessId,
+    p_purchase_order_id: purchaseOrderId,
+    p_order: order,
+    p_items: items,
+  })
+  if (error?.code === 'PGRST202') throw new Error('Chức năng sửa phiếu nhập chưa được cài đặt trong Supabase.')
+  throwIfError(error, 'Không thể sửa phiếu nhập.')
+  return data
+}
+
 export async function recordPurchasePayment(businessId, values) {
   const { data, error } = await supabase.rpc('app_record_purchase_payment', {
     p_business_id: businessId,

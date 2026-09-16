@@ -1,9 +1,9 @@
 /* oxlint-disable react/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, Banknote, CircleDollarSign, Eye, Plus, Printer, RefreshCw, RotateCcw, Trash2, Truck } from 'lucide-react'
+import { Ban, Banknote, CircleDollarSign, Eye, Pencil, Plus, Printer, RefreshCw, RotateCcw, Trash2, Truck } from 'lucide-react'
 import useBusiness from '../hooks/useBusiness'
 import useToast from '../hooks/useToast'
-import { cancelPurchaseOrder, createPurchaseOrder, deleteCancelledPurchaseOrder, getPurchaseOrderItems, listPurchaseOrders, recordPurchasePayment, subscribeToPurchaseOrders } from '../services/purchaseService'
+import { cancelPurchaseOrder, createPurchaseOrder, deleteCancelledPurchaseOrder, getPurchaseOrderItems, listPurchaseOrders, recordPurchasePayment, subscribeToPurchaseOrders, updatePurchaseOrder } from '../services/purchaseService'
 import { listFinanceAccounts } from '../services/financeService'
 import { createPurchaseReturn } from '../services/returnService'
 import { currencyInputStep, formatCurrency, formatDateTime, formatNumber, roundCurrency } from '../lib/formatters'
@@ -33,6 +33,11 @@ function paymentState(order) {
   return { label: 'Chưa thanh toán', tone: 'rose' }
 }
 
+function canEditOrder(order) {
+  return !['cancelled', 'canceled', 'draft'].includes(String(order?.status || '').toLowerCase())
+    && Number(order?.return_total || 0) === 0
+}
+
 export default function Purchases() {
   const { businessId } = useBusiness()
   const { showToast } = useToast()
@@ -42,6 +47,7 @@ export default function Purchases() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [formOpen, setFormOpen] = useState(false)
+  const [editingOrder, setEditingOrder] = useState(null)
   const [viewing, setViewing] = useState(null)
   const [returningOrder, setReturningOrder] = useState(null)
   const [deletingOrder, setDeletingOrder] = useState(null)
@@ -97,9 +103,15 @@ export default function Purchases() {
   const purchasePages = usePagination(filtered, `${search}\u0000${status}`)
 
   async function saveOrder(payload) {
-    const created = await createPurchaseOrder(businessId, payload.order, payload.items)
-    showToast(`Đã tạo phiếu ${created?.code || 'nhập hàng'}.`)
+    if (editingOrder) {
+      const updated = await updatePurchaseOrder(businessId, editingOrder.id, payload.order, payload.items)
+      showToast(`Đã cập nhật phiếu ${updated?.code || editingOrder.code}.`)
+    } else {
+      const created = await createPurchaseOrder(businessId, payload.order, payload.items)
+      showToast(`Đã tạo phiếu ${created?.code || 'nhập hàng'}.`)
+    }
     setFormOpen(false)
+    setEditingOrder(null)
     await loadOrders({ quiet: true })
   }
 
@@ -132,7 +144,7 @@ export default function Purchases() {
         title="Mua hàng"
         description="Theo dõi phiếu nhập hàng, giá vốn sản phẩm và công nợ phải trả nhà cung cấp."
         actions={
-          <button className="btn-primary w-full sm:w-auto" type="button" onClick={() => setFormOpen(true)}>
+          <button className="btn-primary w-full sm:w-auto" type="button" onClick={() => { setEditingOrder(null); setFormOpen(true) }}>
             <Plus size={16} /> Tạo phiếu nhập
           </button>
         }
@@ -217,7 +229,7 @@ export default function Purchases() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {purchasePages.pageItems.map((order) => (
-                    <PurchaseRow key={order.id} order={order} onView={() => setViewing(order)} onReturn={() => setReturningOrder(order)} onDelete={() => setDeletingOrder(order)} />
+                    <PurchaseRow key={order.id} order={order} onView={() => setViewing(order)} onEdit={() => setEditingOrder(order)} onReturn={() => setReturningOrder(order)} onDelete={() => setDeletingOrder(order)} />
                   ))}
                 </tbody>
               </table>
@@ -225,7 +237,7 @@ export default function Purchases() {
 
             <div className="divide-y divide-slate-100 lg:hidden">
               {purchasePages.pageItems.map((order) => (
-                <PurchaseCard key={order.id} order={order} onView={() => setViewing(order)} onReturn={() => setReturningOrder(order)} onDelete={() => setDeletingOrder(order)} />
+                <PurchaseCard key={order.id} order={order} onView={() => setViewing(order)} onEdit={() => setEditingOrder(order)} onReturn={() => setReturningOrder(order)} onDelete={() => setDeletingOrder(order)} />
               ))}
             </div>
 
@@ -240,7 +252,13 @@ export default function Purchases() {
         )}
       </section>
 
-      <PurchaseOrderForm open={formOpen} businessId={businessId} onClose={() => setFormOpen(false)} onSave={saveOrder} />
+      <PurchaseOrderForm
+        open={formOpen || Boolean(editingOrder)}
+        businessId={businessId}
+        editingOrder={editingOrder}
+        onClose={() => { setFormOpen(false); setEditingOrder(null) }}
+        onSave={saveOrder}
+      />
       <ReturnForm
         open={Boolean(returningOrder)}
         businessId={businessId}
@@ -255,6 +273,10 @@ export default function Purchases() {
         order={viewing}
         businessId={businessId}
         onClose={() => setViewing(null)}
+        onEdit={() => {
+          setEditingOrder(viewing)
+          setViewing(null)
+        }}
         onReturn={() => {
           setReturningOrder(viewing)
           setViewing(null)
@@ -280,7 +302,7 @@ export default function Purchases() {
   )
 }
 
-function PurchaseRow({ order, onView, onReturn, onDelete }) {
+function PurchaseRow({ order, onView, onEdit, onReturn, onDelete }) {
   const state = paymentState(order)
   return (
     <tr className="transition-colors hover:bg-slate-50/80">
@@ -302,6 +324,7 @@ function PurchaseRow({ order, onView, onReturn, onDelete }) {
       <td className="px-5 py-3.5 text-right">
         <div className="flex justify-end gap-1">
           <button className="btn-icon" type="button" onClick={onView} aria-label={`Xem phiếu ${order.code}`} title="Xem chi tiết"><Eye size={16} /></button>
+          {canEditOrder(order) && <button className="btn-icon text-amber-600 hover:bg-amber-50" type="button" onClick={onEdit} aria-label={`Sửa phiếu ${order.code}`} title="Sửa"><Pencil size={16} /></button>}
           {!['cancelled', 'draft'].includes(String(order.status)) && Number(order.net_total ?? order.total) > 0 && <button className="btn-icon text-indigo-600 hover:bg-indigo-50" type="button" onClick={onReturn} aria-label={`Trả hàng phiếu ${order.code}`} title="Trả hàng NCC"><RotateCcw size={16} /></button>}
           <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa phiếu ${order.code}`} title="Xóa"><Trash2 size={16} /></button>
         </div>
@@ -310,7 +333,7 @@ function PurchaseRow({ order, onView, onReturn, onDelete }) {
   )
 }
 
-function PurchaseCard({ order, onView, onReturn, onDelete }) {
+function PurchaseCard({ order, onView, onEdit, onReturn, onDelete }) {
   const state = paymentState(order)
   return (
     <article className="p-4 transition hover:bg-slate-50/70">
@@ -339,6 +362,7 @@ function PurchaseCard({ order, onView, onReturn, onDelete }) {
       </div>
       <div className="mt-3 flex gap-2">
         <button className="btn-secondary flex-1 justify-center" type="button" onClick={onView}><Eye size={16} /> Xem chi tiết</button>
+        {canEditOrder(order) && <button className="btn-icon text-amber-600 hover:bg-amber-50" type="button" onClick={onEdit} aria-label={`Sửa phiếu ${order.code}`} title="Sửa"><Pencil size={16} /></button>}
         {!['cancelled', 'draft'].includes(String(order.status)) && Number(order.net_total ?? order.total) > 0 && <button className="btn-icon text-indigo-600 hover:bg-indigo-50" type="button" onClick={onReturn} aria-label={`Trả hàng phiếu ${order.code}`} title="Trả hàng NCC"><RotateCcw size={16} /></button>}
         <button className="btn-icon text-rose-600 hover:bg-rose-50" type="button" onClick={onDelete} aria-label={`Xóa phiếu ${order.code}`} title="Xóa"><Trash2 size={16} /></button>
       </div>
@@ -346,7 +370,7 @@ function PurchaseCard({ order, onView, onReturn, onDelete }) {
   )
 }
 
-function PurchaseDetail({ open, order, businessId, onClose, onReturn, onPaymentComplete, onCancelled }) {
+function PurchaseDetail({ open, order, businessId, onClose, onEdit, onReturn, onPaymentComplete, onCancelled }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -390,6 +414,11 @@ function PurchaseDetail({ open, order, businessId, onClose, onReturn, onPaymentC
           {order && (
             <button className="btn-secondary flex-1 sm:flex-initial" type="button" onClick={printOrder} disabled={loading}>
               <Printer size={17} /> In
+            </button>
+          )}
+          {order && canEditOrder(order) && (
+            <button className="btn-secondary flex-1 text-amber-600 sm:flex-initial" type="button" onClick={onEdit} disabled={loading}>
+              <Pencil size={17} /> Sửa phiếu
             </button>
           )}
           {order?.status !== 'cancelled' && (
